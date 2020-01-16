@@ -1,0 +1,317 @@
+/*
+Theme Name: RVMAGEE (Divi-child)
+Theme URI: http://www.elegantthemes.com/gallery/divi/
+Description: Child theme for the Divi theme
+Author: Elegant Themes
+Author URI: http://www.elegantthemes.com
+Template: Divi
+Version: 1.0.0
+*/
+/*
+You can add your own CSS here.
+
+Click the help icon above to learn more.
+*/
+.page-id-2292{background:url(http://bradvader.mythemecloud.io/wp-content/uploads/splashimage.jpg)no-repeat;background-size:cover!important;background-position:left center!important}
+
+#top-menu-nav .menu-item{font-weight:200}
+#top-menu-nav li a{font-family:'Domine', sans-serif}
+#top-menu-nav li a:hover{color:#f400a0}
+#top-menu-nav li a:active{color:#f400a0}
+#top-header {
+    background-color: #474747!important;
+}
+#main-header{box-shadow: 0 0px 0 rgba(0,0,0,0);}
+#et-secondary-menu {
+    float: left;
+clear:left;
+}
+#custom-top-widget{
+float:right;
+clear:right;
+}
+#custom-cart-right{float:right;clear:right;padding-left:50px;}
+.nav li ul {
+    border-top:6px solid #f400a0;
+	padding:10px 0px!important;
+}
+#top-menu li li {
+    margin: 0;
+    padding: 0 10px;
+line-height:1.5;
+
+}
+#top-menu li li a{font-size:12px;}
+.current_page_item a{color:#caa91e!important}
+.et_pb_slide_description .et_pb_slide_title {
+    font-family: 'Playfair Display', Georgia, "Times New Roman", serif !important;
+    font-weight: bold !important;
+    font-size: 36px !important;
+font-variant:none;
+text-align:left;
+}
+.et_pb_blurb h4, .et_pb_blurb h4 a {
+    font-family: 'Playfair Display',Georgia,"Times New Roman",serif!important;
+    font-weight: 900!important;
+    font-size: 18px!important;
+padding-bottom:15px!important;
+}
+.et_pb_blurb_content p:last-of-type {
+    padding-bottom: 0;
+font-family: 'Domine', sans-serif;
+line-height:1.4;
+font-size:12px!important;
+}
+.et_pb_slide_description, .et_pb_slider_fullwidth_off .et_pb_slide_description {
+    width: auto;
+    margin: auto;
+    padding: 16% 25%;
+}
+.et_pb_slider_0.et_pb_slider .et_pb_slide_content {
+    font-size: 14px !important;
+  font-family: 'Domine', sans-serif;
+color:#888888;
+line-height:1.5;
+}
+#menu-footer-sitemap li{float:left;list-style:none!important;padding-left:0px!important;}
+
+#menu-footer-sitemap li.menu-item a{    font-family: 'Droid Serif', Georgia,serif;
+}
+
+#footer-widgets .footer-widget li::before {
+    top: 2.5px;
+display:none!important;
+
+}
+#footer-widgets .footer-widget li {
+    position: relative;
+    padding-left: 0px;
+font-family: 'Droid Serif', Georgia, serif;
+}
+
+#footer-widgets .footer-widget li a{
+font-size:11px;
+color:#777;
+line-height:11px;
+}
+
+#footer-widgets .footer-widget li a:hover{
+
+color:#444;
+
+}
+.home .input{
+border-radius:2px;
+border:2px solid #fff;
+background-color:transparent;
+color:#fff;
+font-weight:200;
+font-family: 'Droid Serif', Georgia, serif;
+}
+.et_pb_contact_submit{background:#fff;border:0px;font-family: 'Droid Serif', Georgia, serif;color:#333;font-size:14px;padding:10px 40px}
+.et_pb_contact_submit:hover{background:#fff;padding:10px 60px;border:0px;}
+.et_pb_button::after {
+    margin-top: -4px;
+}
+.et_pb_contact_main_title {
+    font-family: 'Cantata One',Georgia,serif;color:#fff;text-align:center;
+font-variant: small-caps;
+margin-bottom:20px;
+}
+#homesocial {margin-top:20px;}
+#homesocial .icon{color:#fff;font-size:4em;}
+#homesocial ul{width:100%;height:100%;padding:0px;}
+#homesocial li {
+    height: 100%;
+    margin-left: 30px;
+    text-align: center;
+}
+.testislider .et_pb_slider .et_pb_slide {
+list-style: none !important;
+font-family: 'Playfair Display', serif;
+
+font-style:italic;
+}
+.testislider .et_pb_slide_content {
+    color: #fff;
+    font-size: 28px;
+    font-weight: 500;
+    text-shadow: 0 0 0 rgba(0,0,0,0);
+    line-height: 33px;
+}
+.testislider .et_pb_slider .et_pb_slide p{font-size:20pt;line-height:1;font-style:italic}
+.testislider .et_pb_slide_description, .testislider .et_pb_slider_fullwidth_off .et_pb_slide_description {
+    width: auto;
+    margin: auto;
+    padding: 0px;
+}
+.testislider .et-pb-controllers {
+bottom:0px;
+}
+.testislider .et_pb_slides{padding-bottom:60px;}
+.testislider{overflow:visible;}
+
+#home_events .owl-carousel .owl-item {
+    position: relative;
+    min-height: 1px;
+    float: left;
+border:1px solid #333;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-container {
+    border: 0px solid transparent;
+    padding: 0px;
+    transition: all .3s ease 0s;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-image {
+    text-align: center;
+    vertical-align: central;
+    overflow: hidden;
+    padding-top: 0px;
+height:200px;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-slide {
+
+    padding: 0;
+
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-image img {
+    display: block;
+    margin: 0 auto;
+    width:100%;
+min-height:200px;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-title {
+    text-align: left;
+    font-size: 14px;
+line-height:1.3;
+font-family: 'Raleway',Helvetica,Arial,Lucida,sans-serif !important;
+color: #caa91e !important;
+font-variant: none;
+padding:10px;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-desc {
+    font-size: 12px;
+font-family: 'Raleway',Helvetica,Arial,Lucida,sans-serif !important;
+    color: #666;
+    padding: 0px 10px;
+margin-bottom:10px;
+line-height:1.5;
+
+ 
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-created-date {
+    padding: 0px 10px;
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #333;
+font-weight:700;
+font-family: 'Raleway',Helvetica,Arial,Lucida,sans-serif !important;
+}
+#home_events .simple-theme.wp-posts-carousel .wp-posts-carousel-categories {
+    padding: 0;
+    margin: 0;
+    background: #eee;
+    padding: 5px;
+    font-size: 12px;
+    position: absolute;
+    top: 3px;
+    left: 4px;
+display:none;
+}
+#about_4 .et_pb_column_9{margin-right:0;}
+#about_4 .et_pb_column_10{}
+#about_4 .et_pb_column_11{margin-right:0;}
+#about_4 .et_pb_column_12{}
+#about_4 .et_pb_row {
+    padding: 0 0;
+}
+#about_4 .et_pb_promo_button {
+    margin-top: 100px;
+    margin-bottom: 100px;
+background-color: rgba(244,0,160,0.7);
+border-width:0;
+padding:10px 30px!important;
+
+}
+#about_4 .et_pb_promo_button:hover{background-color:rgba(30,30,30,0.7)}
+#about_4 .et_pb_promo_button{text-transform:uppercase;font-family:'Domine',serif;}
+#about_4 .et_pb_column_7 {margin-right:0!important;}
+
+/*EVENTS CALENDAR CUSTOM STYLES*******************************/
+#events_topthird{float:left;clear:left;width:33%;background:#f400a0;color:#fff;height:250px;width:250px;margin-right:20px;}
+#events_top2third{float:left;clear:right;width:66%;background-size:cover!important;background-repeat:no-repeat!Important;height:250px;background-position:center bottom}
+#eventtopA {
+    font-size: 100px;
+    display: block;
+    line-height: 110px;
+    width: 100%;
+    text-align: center;
+    font-weight: 600;
+    font-family: 'Domine',serif;
+    height: auto;
+    margin-top: 50px;
+}
+
+#eventtopB{
+	font-size:28px;
+	width: 100%;
+    text-align: center;
+	font-family:'Domine',serif;
+}
+.custom_event_nav{max-width:410px;margin:0 auto!important;}
+.monthnav{border:2px solid #f400a0;width:130px;text-align:center;font-family:'Domine',serif;text-transform:uppercase;border-radius:2px;float:left;padding:4px 0 2px 0}
+.monthnav a{line-height:100%!important;color:#f400a0;}
+.custom_event_nav .prev_month{clear:left;}
+.custom_event_nav .this_month{clear:none;margin:0 10px;background:#f400a0;color:#fff;}
+.custom_event_nav .next_month{clear:right;}
+.fullcalendar td{font-size:70px;line-height:100%;height:100px!important;width:100px!important;padding:0!important;max-width:100px;max-height:100px;border: 2px solid #555!important;text-align:center!important;font-family:'Domine', serif;}
+.fullcalendar .days-names{display:none;}
+.fullcalendar td ul{padding:10px;line-height:10px!important;}
+.fullcalendar td ul a{font-size:10px!important}
+.fullcalendar td.eventful a{margin-top:10px;display:block;color:#fff!important;}
+.fullcalendar td ul li{list-style:none;line-height:12px;color:#fff!important;}
+.dotw{font-size:12px;line-height:14px;color:#fff!important;}
+.fullcalendar td.eventless{background-color:#fff!important;}
+.page-id-126 #about_4 .et_pb_column_5{margin-right:0px;}
+
+/*NEW 2019*********/
+.blog article a img{
+	max-width: 100%;
+	vertical-align: bottom;
+	width: 150px;
+	float: left;
+	position: relative;
+	margin-right: 20px;
+}
+.blog #sidebar{display:none}
+.single-post h1{line-height:1.2em}
+.single-post .et_post_meta_wrapper img{width:50%;float:left;margin-right:20px}
+.wp-admin .wp-picker-container a.wp-color-result span{height:50px!important}
+.et_pb_promo_description h2{
+    
+}
+.et_pb_section_6 .et_pb_promo_description p{
+    display:none;
+}
+.et_pb_section_6 .et_pb_promo {margin-bottom:2rem!important;padding-bottom:1rem!important;border-bottom:1px solid #888888}
+.et_full_width_page #main-content {
+
+    margin-bottom:0rem;
+
+}
+.et_pb_button {
+    position: relative;
+    padding: 0.3em 1em;
+    border: 2px solid;
+    -webkit-border-radius: 3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.7em !important;
+    -webkit-transition: all 0.2s;
+    -moz-transition: all 0.2s;
+    transition: all 0.2s;
+}
+

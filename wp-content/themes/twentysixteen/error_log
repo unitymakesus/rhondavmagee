@@ -1,0 +1,8 @@
+[03-Oct-2019 21:32:14 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function get_header() in /home/rhondavmagee/public_html/wp-content/themes/twentysixteen/404.php:10
+Stack trace:
+#0 {main}
+  thrown in /home/rhondavmagee/public_html/wp-content/themes/twentysixteen/404.php on line 10
+[20-Oct-2019 11:12:03 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function get_header() in /home/rhondavmagee/public_html/wp-content/themes/twentysixteen/404.php:10
+Stack trace:
+#0 {main}
+  thrown in /home/rhondavmagee/public_html/wp-content/themes/twentysixteen/404.php on line 10
