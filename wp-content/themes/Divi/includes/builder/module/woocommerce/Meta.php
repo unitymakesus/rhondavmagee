@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -33,7 +33,7 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 			'advanced' => array(
 				'toggles' => array(
 					'layout' => esc_html__( 'Layout', 'et_builder' ),
-					'text' => array(
+					'body' => array(
 						'title'             => esc_html__( 'Text', 'et_builder' ),
 						'priority'          => 45,
 						'tabbed_subtoggles' => true,
@@ -67,12 +67,12 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 						'default' => '1.7em',
 					),
 					'sub_toggle'  => 'p',
-					'toggle_slug' => 'text',
+					'toggle_slug' => 'body',
 				),
 				'link' => array(
 					'label'           => esc_html__( 'Link', 'et_builder' ),
 					'css'             => array(
-						'main' => '%%order_class%% .product_meta a',
+						'main' => '%%order_class%% div.product_meta a',
 					),
 					'font_size'       => array(
 						'default' => '14px',
@@ -80,7 +80,7 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 					'line_height'     => array(
 						'default' => '1.7em',
 					),
-					'toggle_slug'     => 'text',
+					'toggle_slug'     => 'body',
 					'sub_toggle'      => 'a',
 					'hide_text_align' => true,
 				),
@@ -169,7 +169,7 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 			'product'         => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__meta',
 					),
@@ -190,6 +190,9 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 				'description'     => esc_html__( 'Here you can set the separator.', 'et_builder' ),
 				'toggle_slug'     => 'main_content',
 				'default'         => '/',
+				'show_if'         => array(
+					'meta_layout' => 'inline',
+				),
 			),
 			'show_sku'        => array(
 				'label'            => esc_html__( 'Show SKU', 'et_builder' ),
@@ -245,6 +248,9 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 				'toggle_slug'      => 'layout',
 				'description'      => esc_html__( 'Here you can choose how to position the product meta.', 'et_builder' ),
 				'default_on_front' => 'inline',
+				'affects'           => array(
+					'separator',
+				),
 			),
 			'__meta'          => array(
 				'type'                => 'computed',
@@ -359,12 +365,14 @@ class ET_Builder_Module_Woocommerce_Meta extends ET_Builder_Module {
 		ET_Builder_Element::set_style(
 			$render_slug,
 			array(
-				'selector' => array(
-					'%%order_class%%:not(.et_pb_wc_no_categories) .sku_wrapper:after',
-					'%%order_class%%:not(.et_pb_wc_no_tags) .sku_wrapper:after',
-					'%%order_class%%:not(.et_pb_wc_no_tags) .posted_in:after',
+				'selector'    => array(
+					'%%order_class%%:not(.et_pb_wc_no_categories).et_pb_wc_meta_layout_inline .sku_wrapper:after',
+					'%%order_class%%:not(.et_pb_wc_no_tags).et_pb_wc_meta_layout_inline .sku_wrapper:after',
+					'%%order_class%%:not(.et_pb_wc_no_tags).et_pb_wc_meta_layout_inline .posted_in:after',
 				),
-				'declaration' => 'content: " ' . esc_html( $this->props['separator'] ) . ' "',
+				'declaration' => 'content: " ' . esc_html(
+						ET_Builder_Module_Helper_Woocommerce_Modules::escape_special_chars(
+							$this->props['separator'] ) ) . ' "',
 			)
 		);
 

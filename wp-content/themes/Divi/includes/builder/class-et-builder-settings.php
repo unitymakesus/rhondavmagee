@@ -1,7 +1,6 @@
 <?php
 
 require_once 'module/field/Factory.php';
-require_once 'module/helpers/Overflow.php';
 
 
 class ET_Builder_Settings {
@@ -27,9 +26,9 @@ class ET_Builder_Settings {
 	protected static $_PAGE_SETTINGS_FIELDS_META_KEY_MAP = array();
 
 	/**
-	 * @var array
+	 * @var array[]
 	 */
-	protected static $_PAGE_SETTINGS_IS_DEFAULT;
+	protected static $_PAGE_SETTINGS_IS_DEFAULT = array();
 
 	/**
 	 * @var array
@@ -586,7 +585,7 @@ class ET_Builder_Settings {
 		$et_pb_static_css_file = '' !== $static_css_file ? $static_css_file : $default;
 		$is_default[]          = $et_pb_static_css_file === $default ? 'et_pb_static_css_file' : '';
 
-		self::$_PAGE_SETTINGS_IS_DEFAULT = $is_default;
+		self::$_PAGE_SETTINGS_IS_DEFAULT[ $post_id ] = $is_default;
 
 		$post = get_post( $post_id );
 		$values = array(
@@ -921,6 +920,10 @@ class ET_Builder_Settings {
 	}
 
 	public static function update_option_cb( $setting, $setting_value, $post_id = 'global' ) {
+		if ( did_action( 'wp_ajax_et_fb_ajax_save' ) ) {
+			return;
+		}
+
 		self::_maybe_clear_cached_static_css_files( $setting, $setting_value );
 	}
 
@@ -1084,6 +1087,7 @@ class ET_Builder_Settings {
 	 * }
 	 */
 	public static function get_values( $scope = 'page', $post_id = null, $exclude_defaults = false ) {
+		$post_id = $post_id ? $post_id : get_the_ID();
 		$result = array();
 
 		if ( 'builder' === $scope ) {
@@ -1101,7 +1105,7 @@ class ET_Builder_Settings {
 			'all' === $scope || $result = array( $result );
 
 			foreach ( $result as $key => $settings ) {
-				$result[ $key ] = array_diff_key( $result[ $key ], array_flip( self::$_PAGE_SETTINGS_IS_DEFAULT ) );
+				$result[ $key ] = array_diff_key( $result[ $key ], array_flip( self::$_PAGE_SETTINGS_IS_DEFAULT[ $post_id ] ) );
 			}
 
 			'all' === $scope || $result = $result[0];

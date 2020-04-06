@@ -1098,11 +1098,11 @@ class ET_Core_SupportCenter {
 			$et_license = get_option( 'et_automatic_updates_options', array() );
 		}
 
-		if ( ! array_key_exists( 'username', $et_license ) || empty( $et_license['username'] ) ) {
+		if ( ! et_()->array_get( $et_license, 'username' ) ) {
 			return false;
 		}
 
-		if ( ! array_key_exists( 'api_key', $et_license ) || empty( $et_license['api_key'] ) ) {
+		if ( ! et_()->array_get( $et_license, 'api_key' ) ) {
 			return false;
 		}
 
@@ -1127,7 +1127,10 @@ class ET_Core_SupportCenter {
 		// Early exit: internal PHP function `file_get_contents()` appears to be on lockdown
 		if ( ! function_exists( 'file_get_contents' ) ) {
 			$log['error'] = esc_attr__( 'Divi Support Center :: WordPress debug log cannot be read.', 'et-core' );
-			et_error( $log['error'] );
+
+			if ( defined( 'ET_DEBUG' ) ) {
+				et_error( $log['error'] );
+			}
 
 			return $log;
 		}
@@ -1135,7 +1138,10 @@ class ET_Core_SupportCenter {
 		// Early exit: WP_DEBUG_LOG isn't defined in wp-config.php (or it's defined, but it's empty)
 		if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
 			$log['error'] = esc_attr__( 'Divi Support Center :: WordPress debug.log is not configured.', 'et-core' );
-			et_error( $log['error'] );
+
+			if ( defined( 'ET_DEBUG' ) ) {
+				et_error( $log['error'] );
+			}
 
 			return $log;
 		}
@@ -1143,9 +1149,9 @@ class ET_Core_SupportCenter {
 		/**
 		 * WordPress 5.1 introduces the option to define a custom path for the WP_DEBUG_LOG file.
 		 *
-		 * @since 3.20
-		 *
 		 * @see wp_debug_mode()
+		 *
+		 * @since 3.20
 		 */
 		if ( in_array( strtolower( (string) WP_DEBUG_LOG ), array( 'true', '1' ), true ) ) {
 			$wp_debug_log_path = realpath( WP_CONTENT_DIR . '/debug.log' );
@@ -1156,7 +1162,10 @@ class ET_Core_SupportCenter {
 		// Early exit: `debug.log` doesn't exist or otherwise can't be read
 		if ( ! isset( $wp_debug_log_path ) || ! file_exists( $wp_debug_log_path ) || ! is_readable( $wp_debug_log_path ) ) {
 			$log['error'] = esc_attr__( 'Divi Support Center :: WordPress debug log cannot be found.', 'et-core' );
-			et_error( $log['error'] );
+
+			if ( defined( 'ET_DEBUG' ) ) {
+				et_error( $log['error'] );
+			}
 
 			return $log;
 		}
@@ -1263,7 +1272,7 @@ class ET_Core_SupportCenter {
 				'environment'    => 'server',
 				'type'           => 'size',
 				'pass_minus_one' => false,
-				'pass_zero'      => false,
+				'pass_zero'      => true,
 				'minimum'        => null,
 				'recommended'    => '64M',
 				'actual'         => ini_get( 'upload_max_filesize' ),
@@ -1303,7 +1312,7 @@ class ET_Core_SupportCenter {
 				'pass_exact'     => null,
 				'minimum'        => null,
 				'recommended'    => '0',
-				'actual'         => !ini_get( 'display_errors' ) ? '0' : ini_get( 'display_errors' ),
+				'actual'         => ! ini_get( 'display_errors' ) ? '0' : ini_get( 'display_errors' ),
 				'help_text'      => et_get_safe_localization( sprintf( __( 'This setting determines whether or not errors should be printed as part of the page output. This is a feature to support your site\'s development and should never be used on production sites. You can edit this setting within your <a href="%1$s" target="_blank">php.ini file</a>, or by contacting your host for assistance.', 'et-core' ), 'http://php.net/manual/en/errorfunc.configuration.php#ini.display-errors' ) ),
 				'learn_more'     => 'http://php.net/manual/en/errorfunc.configuration.php#ini.display-errors',
 			),
@@ -1543,7 +1552,7 @@ class ET_Core_SupportCenter {
 	protected function value_is_at_least( $a, $b, $type = 'size' ) {
 		switch ( $type ) {
 			case 'truthy_falsy':
-				return $this->value_is_falsy($a) === $this->value_is_falsy($b);
+				return $this->value_is_falsy( $a ) === $this->value_is_falsy( $b );
 			case 'version':
 				return (float) $a <= (float) $b;
 			case 'seconds':
@@ -1626,47 +1635,47 @@ class ET_Core_SupportCenter {
 		if ( class_exists( 'Tribe__Events__Main' ) ) {
 			$the_events_calendar = array(
 				// Events
-				'edit_tribe_event' => 1,
-				'read_tribe_event' => 1,
-				'delete_tribe_event' => 1,
-				'delete_tribe_events' => 1,
-				'edit_tribe_events' => 1,
-				'edit_others_tribe_events' => 1,
-				'delete_others_tribe_events' => 1,
-				'publish_tribe_events' => 1,
-				'edit_published_tribe_events' => 1,
-				'delete_published_tribe_events' => 1,
-				'delete_private_tribe_events' => 1,
-				'edit_private_tribe_events' => 1,
-				'read_private_tribe_events' => 1,
+				'edit_tribe_event'                  => 1,
+				'read_tribe_event'                  => 1,
+				'delete_tribe_event'                => 1,
+				'delete_tribe_events'               => 1,
+				'edit_tribe_events'                 => 1,
+				'edit_others_tribe_events'          => 1,
+				'delete_others_tribe_events'        => 1,
+				'publish_tribe_events'              => 1,
+				'edit_published_tribe_events'       => 1,
+				'delete_published_tribe_events'     => 1,
+				'delete_private_tribe_events'       => 1,
+				'edit_private_tribe_events'         => 1,
+				'read_private_tribe_events'         => 1,
 				// Venues
-				'edit_tribe_venue' => 1,
-				'read_tribe_venue' => 1,
-				'delete_tribe_venue' => 1,
-				'delete_tribe_venues' => 1,
-				'edit_tribe_venues' => 1,
-				'edit_others_tribe_venues' => 1,
-				'delete_others_tribe_venues' => 1,
-				'publish_tribe_venues' => 1,
-				'edit_published_tribe_venues' => 1,
-				'delete_published_tribe_venues' => 1,
-				'delete_private_tribe_venues' => 1,
-				'edit_private_tribe_venues' => 1,
-				'read_private_tribe_venues' => 1,
+				'edit_tribe_venue'                  => 1,
+				'read_tribe_venue'                  => 1,
+				'delete_tribe_venue'                => 1,
+				'delete_tribe_venues'               => 1,
+				'edit_tribe_venues'                 => 1,
+				'edit_others_tribe_venues'          => 1,
+				'delete_others_tribe_venues'        => 1,
+				'publish_tribe_venues'              => 1,
+				'edit_published_tribe_venues'       => 1,
+				'delete_published_tribe_venues'     => 1,
+				'delete_private_tribe_venues'       => 1,
+				'edit_private_tribe_venues'         => 1,
+				'read_private_tribe_venues'         => 1,
 				// Organizers
-				'edit_tribe_organizer' => 1,
-				'read_tribe_organizer' => 1,
-				'delete_tribe_organizer' => 1,
-				'delete_tribe_organizers' => 1,
-				'edit_tribe_organizers' => 1,
-				'edit_others_tribe_organizers' => 1,
-				'delete_others_tribe_organizers' => 1,
-				'publish_tribe_organizers' => 1,
-				'edit_published_tribe_organizers' => 1,
+				'edit_tribe_organizer'              => 1,
+				'read_tribe_organizer'              => 1,
+				'delete_tribe_organizer'            => 1,
+				'delete_tribe_organizers'           => 1,
+				'edit_tribe_organizers'             => 1,
+				'edit_others_tribe_organizers'      => 1,
+				'delete_others_tribe_organizers'    => 1,
+				'publish_tribe_organizers'          => 1,
+				'edit_published_tribe_organizers'   => 1,
 				'delete_published_tribe_organizers' => 1,
-				'delete_private_tribe_organizers' => 1,
-				'edit_private_tribe_organizers' => 1,
-				'read_private_tribe_organizers' => 1,
+				'delete_private_tribe_organizers'   => 1,
+				'edit_private_tribe_organizers'     => 1,
+				'read_private_tribe_organizers'     => 1,
 			);
 
 			$extra_capabilities = array_merge( $extra_capabilities, $the_events_calendar );
@@ -1812,6 +1821,7 @@ class ET_Core_SupportCenter {
 			'read_dynamic_content_custom_fields' => true,
 			'save_library'                       => true,
 			'use_visual_builder'                 => true,
+			'theme_builder'                      => true,
 			// WooCommerce Capabilities
 			'manage_woocommerce'                 => true,
 		);
@@ -1896,9 +1906,9 @@ class ET_Core_SupportCenter {
 	 *
 	 * @since 3.22
 	 *
-	 * @param  array  $caps    An array of capabilities.
-	 * @param  string $cap     The capability being requested.
-	 * @param  int    $user_id The current user's ID.
+	 * @param array $caps An array of capabilities.
+	 * @param string $cap The capability being requested.
+	 * @param int $user_id The current user's ID.
 	 *
 	 * @return array Modified array of user capabilities.
 	 */
@@ -1987,8 +1997,8 @@ class ET_Core_SupportCenter {
 	 *
 	 * @since 3.20
 	 *
-	 * @param  integer $length Token Length
-	 * @param  bool $include_symbols Whether to include special characters (or just stick to alphanumeric)
+	 * @param integer $length Token Length
+	 * @param bool $include_symbols Whether to include special characters (or just stick to alphanumeric)
 	 *
 	 * @return string  $token           Generated token
 	 */
@@ -2005,7 +2015,7 @@ class ET_Core_SupportCenter {
 	 *
 	 * @since 3.20
 	 *
-	 * @param  string $token Token
+	 * @param string $token Token
 	 *
 	 * @return string|WP_Error Generated password if successful, WP Error object otherwise
 	 */
@@ -2469,7 +2479,7 @@ class ET_Core_SupportCenter {
 	 *
 	 * @since 3.20
 	 *
-	 * @param bool $activate  TRUE if enabling Safe Mode, FALSE if disabling Safe mode.
+	 * @param bool $activate TRUE if enabling Safe Mode, FALSE if disabling Safe mode.
 	 * @param string $product Name of ET product that is activating Safe Mode (@see ET_Core_SupportCenter::get_parent_nicename()).
 	 */
 	public function toggle_safe_mode( $activate = true, $product = '' ) {
@@ -2551,7 +2561,7 @@ class ET_Core_SupportCenter {
 								); ?></p>
 						</div>
 						<a class="et-core-modal-action"
-						   href="<?php echo admin_url( null, 'admin.php?page=et_support_center#et_card_safe_mode' ); ?>">
+								href="<?php echo admin_url( null, 'admin.php?page=et_support_center#et_card_safe_mode' ); ?>">
 							<?php print esc_html__( sprintf( 'Turn Off %1$s Safe Mode', $verified_activator ), 'et-core' ); ?>
 						</a>
 					</div>
@@ -2630,8 +2640,7 @@ class ET_Core_SupportCenter {
 		}
 
 		?>
-		<div id="et_support_center" class="wrap et-divi-admin-page--wrapper" data-et-zone="wp-admin"
-			 data-et-page="wp-admin-support-center">
+		<div id="et_support_center" class="wrap et-divi-admin-page--wrapper" data-et-zone="wp-admin" data-et-page="wp-admin-support-center">
 			<h1><?php esc_html_e( sprintf( '%1$s Help &amp; Support Center', $this->parent_nicename ), 'et-core' );
 				?></h1>
 
@@ -2984,9 +2993,7 @@ class ET_Core_SupportCenter {
 			</div>
 		</div>
 		<div id="et-ajax-saving">
-			<img src="<?php echo esc_url( $this->local_path . 'admin/images/ajax-loader.gif' ); ?>"
-				 alt="loading"
-				 id="loading" />
+			<img src="<?php echo esc_url( $this->local_path . 'admin/images/ajax-loader.gif' ); ?>" alt="loading" id="loading" />
 		</div>
 		<?php
 

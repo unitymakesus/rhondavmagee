@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -124,7 +124,7 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 				'product'        => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 					'product',
 					array(
-						'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+						'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 						'computed_affects' => array(
 							'__tabs',
 						),
@@ -228,7 +228,7 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 						%1$s
 					</div><!-- .et_pb_tab_content" -->
 				</div>',
-				$tab['content'],
+				do_shortcode( et_strip_shortcodes( $tab['content'] ) ),
 				1 === $index ? ' et_pb_active_content' : ''
 			);
 		}
@@ -237,7 +237,39 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 	}
 
 	/**
+	 * Load comments template.
+	 *
+	 * @param string $template template to load.
+	 * @return string
+	 */
+	public static function comments_template_loader( $template ) {
+		if ( ! et_builder_tb_enabled() ) {
+			return $template;
+		}
+
+		$check_dirs = array(
+			trailingslashit( get_stylesheet_directory() ) . WC()->template_path(),
+			trailingslashit( get_template_directory() ) . WC()->template_path(),
+			trailingslashit( get_stylesheet_directory() ),
+			trailingslashit( get_template_directory() ),
+			trailingslashit( WC()->plugin_path() ) . 'templates/',
+		);
+
+		if ( WC_TEMPLATE_DEBUG_MODE ) {
+			$check_dirs = array( array_pop( $check_dirs ) );
+		}
+
+		foreach ( $check_dirs as $dir ) {
+			if ( file_exists( trailingslashit( $dir ) . 'single-product-reviews.php' ) ) {
+				return trailingslashit( $dir ) . 'single-product-reviews.php';
+			}
+		}
+	}
+
+	/**
 	 * Get tabs data
+	 *
+	 * @since 4.0.9 Avoid fetching Tabs content using `the_content` when editing TB layout.
 	 *
 	 * @param array $args Additional args.
 	 *
@@ -262,7 +294,12 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 		// Determine whether current tabs data needs global variable overwrite or not.
 		$overwrite_global = et_builder_wc_need_overwrite_global( $args['product'] );
 
-		if ( $overwrite_global ) {
+		// Check if TB is used
+		$is_tb = et_builder_tb_enabled();
+
+		if ( $is_tb ) {
+			et_theme_builder_wc_set_global_objects();
+		} else if ( $overwrite_global ) {
 			// Save current global variable for later reset.
 			$original_product  = $product;
 			$original_post     = $post;
@@ -287,7 +324,7 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 			}
 
 			if ( 'description' === $name ) {
-				if ( ! et_pb_is_pagebuilder_used( $product_id ) ) {
+				if ( ! et_builder_tb_enabled() && ! et_pb_is_pagebuilder_used( $product_id ) ) {
 					// If selected product doesn't use builder, retrieve post content.
 					$tab_content = apply_filters( 'the_content', $post->post_content );
 				} else {
@@ -296,11 +333,19 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 					 * which might cause infinite loop; get Divi's long description from
 					 * post meta instead.
 					 */
-					$tab_content = get_post_meta( $product_id, ET_BUILDER_WC_PRODUCT_LONG_DESC_META_KEY, true );
+					if ( et_builder_tb_enabled() ) {
+						$placeholders = et_theme_builder_wc_placeholders();
+
+						$tab_content = $placeholders['description'];
+					} else {
+						$tab_content = get_post_meta( $product_id, ET_BUILDER_WC_PRODUCT_LONG_DESC_META_KEY, true );
+					}
+					$tab_content = wpautop( $tab_content );
 				}
 			} else {
 				// Get tab value based on defined product tab's callback attribute.
 				ob_start();
+				// @phpcs:ignore Generic.PHP.ForbiddenFunctions.Found
 				call_user_func( $tab['callback'], $name, $tab );
 				$tab_content = ob_get_clean();
 			}
@@ -314,7 +359,9 @@ class ET_Builder_Module_Woocommerce_Tabs extends ET_Builder_Module_Tabs {
 		}
 
 		// Reset overwritten global variable.
-		if ( $overwrite_global ) {
+		if ( $is_tb ) {
+			et_theme_builder_wc_reset_global_objects();
+		} else if ( $overwrite_global ) {
 			$product  = $original_product;
 			$post     = $original_post;
 			$wp_query = $original_wp_query;

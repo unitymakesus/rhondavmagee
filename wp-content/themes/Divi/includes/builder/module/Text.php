@@ -120,9 +120,10 @@ class ET_Builder_Module_Text extends ET_Builder_Module {
 				'ul'   => array(
 					'label'    => esc_html__( 'Unordered List', 'et_builder' ),
 					'css'      => array(
-						'main'        => "{$this->main_css_element} ul",
-						'color'       => "{$this->main_css_element}.et_pb_text ul",
+						'main'        => "{$this->main_css_element} ul li",
+						'color'       => "{$this->main_css_element}.et_pb_text ul li",
 						'line_height' => "{$this->main_css_element} ul li",
+						'item_indent' => "{$this->main_css_element} ul",
 					),
 					'line_height' => array(
 						'default' => '1em',
@@ -136,9 +137,10 @@ class ET_Builder_Module_Text extends ET_Builder_Module {
 				'ol'   => array(
 					'label'    => esc_html__( 'Ordered List', 'et_builder' ),
 					'css'      => array(
-						'main'        => "{$this->main_css_element} ol",
-						'color'       => "{$this->main_css_element}.et_pb_text ol",
+						'main'        => "{$this->main_css_element} ol li",
+						'color'       => "{$this->main_css_element}.et_pb_text ol li",
 						'line_height' => "{$this->main_css_element} ol li",
+						'item_indent' => "{$this->main_css_element} ol",
 					),
 					'line_height' => array(
 						'default' => '1em',
@@ -558,32 +560,15 @@ class ET_Builder_Module_Text extends ET_Builder_Module {
 
 		// Module classnames
 		$this->add_classname( array(
-			"et_pb_bg_layout_{$background_layout}",
 			$this->get_text_orientation_classname(),
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
-
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		$content = $multi_view->render_element( array(
 			'tag'     => 'div',
@@ -594,7 +579,7 @@ class ET_Builder_Module_Text extends ET_Builder_Module {
 		) );
 
 		$output = sprintf(
-			'<div%3$s class="%2$s"%6$s%7$s>
+			'<div%3$s class="%2$s"%6$s>
 				%5$s
 				%4$s
 				%1$s
@@ -604,8 +589,7 @@ class ET_Builder_Module_Text extends ET_Builder_Module {
 			$this->module_id(),
 			$video_background,
 			$parallax_image_background, // #5
-			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover )
+			et_core_esc_previously( $data_background_layout )
 		);
 
 		return $output;

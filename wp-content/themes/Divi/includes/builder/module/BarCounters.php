@@ -70,7 +70,7 @@ class ET_Builder_Module_Bar_Counters extends ET_Builder_Module {
 				),
 				'options' => array(
 					'background_color' => array(
-						'default'          => '#dddddd',
+						'default'          => '',
 					),
 				),
 			),
@@ -95,6 +95,9 @@ class ET_Builder_Module_Bar_Counters extends ET_Builder_Module {
 				'css' => array(
 					'main' => '%%order_class%%',
 				),
+			),
+			'scroll_effects'        => array(
+				'grid_support' => 'yes',
 			),
 			'button'                => false,
 		);
@@ -176,6 +179,7 @@ class ET_Builder_Module_Bar_Counters extends ET_Builder_Module {
 		$allow_player_pause        = $this->props['allow_player_pause'];
 		$bar_bg_color_values       = et_pb_responsive_options()->get_property_values( $this->props, 'bar_bg_color' );
 		$background_video_pause_outside_viewport = $this->props['background_video_pause_outside_viewport'];
+		$use_background_color_gradient           = $this->props['use_background_color_gradient'];
 
 		// Background Color.
 		$background_last_edited        = self::$_->array_get( $this->props, 'background_last_edited', '' );
@@ -211,47 +215,27 @@ class ET_Builder_Module_Bar_Counters extends ET_Builder_Module {
 			'bar_bg_color_phone'             => isset( $bar_bg_color_values['phone'] ) ? $bar_bg_color_values['phone'] : '',
 			'use_percentages'                => $multi_view->get_values( 'use_percentages' ),
 			'background_video_pause_outside_viewport' => $background_video_pause_outside_viewport,
+			'use_background_color_gradient'           => $use_background_color_gradient,
 		);
 	}
 
 	function render( $attrs, $content = null, $render_slug ) {
-		$background_layout               = $this->props['background_layout'];
-		$background_layout_values        = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_hover         = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$bar_bg_hover_color              = et_pb_hover_options()->get_value( 'bar_bg_color', $this->props );
-		$video_background = $this->video_background();
+		$bar_bg_hover_color = et_pb_hover_options()->get_value( 'bar_bg_color', $this->props );
+		$video_background   = $this->video_background();
 
 		// Module classname
 		$this->add_classname( array(
 			'et-waypoint',
-			"et_pb_bg_layout_{$background_layout}",
 		) );
 
-		$background_layout_tablet = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		$background_layout_phone = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		$this->add_classname( $this->get_text_orientation_classname() );
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-
-		if ( et_pb_hover_options()->is_enabled( 'background_layout', $this->props ) ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		if ( ! empty( $bar_bg_hover_color ) ) {
 			self::set_style( $render_slug,
@@ -262,14 +246,13 @@ class ET_Builder_Module_Bar_Counters extends ET_Builder_Module {
 		}
 
 		$output = sprintf(
-			'<ul%3$s class="%2$s"%4$s%5$s>
+			'<ul%3$s class="%2$s"%4$s>
 				%1$s
 			</ul> <!-- .et_pb_counters -->',
 			$this->content,
 			$this->module_classname( $render_slug ),
 			$this->module_id(),
-			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover ) // #5
+			et_core_esc_previously( $data_background_layout )
 		);
 
 		return $output;

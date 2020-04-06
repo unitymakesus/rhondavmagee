@@ -250,9 +250,6 @@ class ET_Builder_Module_Login extends ET_Builder_Module {
 			),
 		) );
 		$background_color                  = $this->props['background_color'];
-		$background_layout                 = $this->props['background_layout'];
-		$background_layout_hover           = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled   = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
 		$use_background_color              = $this->props['use_background_color'];
 		$current_page_redirect             = $this->props['current_page_redirect'];
 		$button_custom                     = $this->props['custom_button'];
@@ -264,14 +261,6 @@ class ET_Builder_Module_Login extends ET_Builder_Module {
 		$custom_icon                       = isset( $custom_icon_values['desktop'] ) ? $custom_icon_values['desktop'] : '';
 		$custom_icon_tablet                = isset( $custom_icon_values['tablet'] ) ? $custom_icon_values['tablet'] : '';
 		$custom_icon_phone                 = isset( $custom_icon_values['phone'] ) ? $custom_icon_values['phone'] : '';
-
-		// Background Layout.
-		$background_layout                 = $this->props['background_layout'];
-		$background_layout_hover           = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled   = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values          = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet          = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone           = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
 
 		$redirect_url = 'on' === $current_page_redirect
 			? ( is_ssl() ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']
@@ -338,33 +327,19 @@ class ET_Builder_Module_Login extends ET_Builder_Module {
 			);
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
+
 		// Module classnames
 		$this->add_classname( array(
 			'et_pb_newsletter',
 			'clearfix',
-			"et_pb_bg_layout_{$background_layout}",
 			$this->get_text_orientation_classname()
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( is_customize_preview() || is_et_pb_preview() ) {
 			$this->add_classname( 'et_pb_in_customizer' );
@@ -374,34 +349,63 @@ class ET_Builder_Module_Login extends ET_Builder_Module {
 			$this->add_classname( 'et_pb_with_focus_border' );
 		}
 
+		if ( ! $multi_view->has_value( 'title' ) ) {
+			$this->add_classname( 'et_pb_newsletter_description_no_title' );
+		}
+
+		if ( ! $multi_view->has_value( 'content' ) ) {
+			$this->add_classname( 'et_pb_newsletter_description_no_content' );
+		}
+
 		$content = $multi_view->render_element( array(
-			'tag'     => 'div',
-			'content' => '{{content}}',
-			'attrs'   => array(
+			'tag'      => 'div',
+			'content'  => '{{content}}',
+			'required' => false,
+			'attrs'    => array(
 				'class' => 'et_pb_newsletter_description_content',
 			),
 		) );
 
+		$content_wrapper = $multi_view->render_element( array(
+			'tag'     => 'div',
+			'content' => "{$title}{$content}",
+			'attrs'   => array(
+				'class' => 'et_pb_newsletter_description',
+			),
+			'classes' => array(
+				'et_multi_view_hidden' => array(
+					'title'   => '__empty',
+					'content' => '__empty',
+				),
+			),
+		) );
+
+		$wrapper_multi_view_classes = $multi_view->render_attrs( array(
+			'classes' => array(
+				'et_pb_newsletter_description_no_title' => array(
+					'title' => '__empty',
+				),
+				'et_pb_newsletter_description_no_content' => array(
+					'content' => '__empty',
+				),
+			),
+		) );
+
 		$output = sprintf(
-			'<div%6$s class="%4$s"%5$s%9$s%10$s>
-				%8$s
-				%7$s
-				<div class="et_pb_newsletter_description">
-					%1$s
-					%2$s
-				</div>
+			'<div%4$s class="%2$s"%7$s%7$s>
+				%6$s
+				%5$s
 				%3$s
+				%1$s
 			</div>',
-			$title,
-			$content,
 			$form,
 			$this->module_classname( $render_slug ),
-			'',
+			et_core_esc_previously( $content_wrapper ),
 			$this->module_id(),
-			$video_background,
+			$video_background, // #5
 			$parallax_image_background,
 			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover ) // #10
+			$wrapper_multi_view_classes
 		);
 
 		return $output;
@@ -438,10 +442,11 @@ class ET_Builder_Module_Login extends ET_Builder_Module {
 				? ( is_ssl() ? 'https://' : 'http://' ) . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']
 				: '';
 
-			$raw_value .= sprintf( '<br/>%1$s <a href="%2$s">%3$s</a>',
+			$raw_value .= sprintf( '%4$s%1$s <a href="%2$s">%3$s</a>',
 				sprintf( esc_html__( 'Logged in as %1$s', 'et_builder' ), esc_html( $current_user->display_name ) ),
 				esc_url( wp_logout_url( esc_url( $redirect_url ) ) ),
-				esc_html__( 'Log out', 'et_builder' )
+				esc_html__( 'Log out', 'et_builder' ),
+				'' === $raw_value && ! $multi_view->has_value( 'title' ) ? '' : '<br/>'
 			);
 		}
 

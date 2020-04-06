@@ -174,15 +174,50 @@ if ( ! function_exists( 'et_core_get_ip_address' ) ):
  * @return string
  */
 function et_core_get_ip_address() {
-	if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
-		$ip = $_SERVER['HTTP_CLIENT_IP'];
-	} else if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
-		$ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-	} else {
-		$ip = $_SERVER['REMOTE_ADDR'];
+	static $ip;
+
+	if ( null !== $ip ) {
+		return $ip;
 	}
 
-	return sanitize_text_field( $ip );
+	// Array of headers that could contain a valid IP address.
+	$headers = array(
+		'HTTP_TRUE_CLIENT_IP',
+		'HTTP_CF_CONNECTING_IP',
+		'HTTP_X_SUCURI_CLIENTIP',
+		'HTTP_X_FORWARDED_FOR',
+		'HTTP_X_FORWARDED',
+		'HTTP_X_CLUSTER_CLIENT_IP',
+		'HTTP_FORWARDED_FOR',
+		'HTTP_FORWARDED',
+		'HTTP_CLIENT_IP',
+		'REMOTE_ADDR',
+	);
+
+	$ip = '';
+
+	foreach ( $headers as $header ) {
+		// Skip if the header is not set.
+		if ( empty( $_SERVER[ $header ] ) ) {
+			continue;
+		}
+
+		$header = $_SERVER[ $header ];
+
+		if ( et_()->includes( $header, ',' ) ) {
+			$header = explode( ',', $header );
+			$header = $header[0];
+		}
+
+		// Break if valid IP address is found.
+		if ( filter_var( $header, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE ) ) {
+			$ip = sanitize_text_field( $header );
+
+			break;
+		}
+	}
+
+	return $ip;
 }
 endif;
 
@@ -352,7 +387,11 @@ endif;
 
 if ( ! function_exists( 'et_core_is_fb_enabled' ) ):
 function et_core_is_fb_enabled() {
-	return function_exists( 'et_fb_is_enabled' ) && et_fb_is_enabled();
+	if ( function_exists( 'et_fb_is_enabled' ) ) {
+		return et_fb_is_enabled();
+	}
+
+	return isset( $_GET['et_fb'] ) && current_user_can( 'edit-posts' );
 }
 endif;
 
@@ -789,6 +828,7 @@ function et_new_core_setup() {
 
 	require_once ET_CORE_PATH . 'components/Updates.php';
 	require_once ET_CORE_PATH . 'components/init.php';
+	require_once ET_CORE_PATH . 'php_functions.php';
 	require_once ET_CORE_PATH . 'wp_functions.php';
 
 	if ( $has_php_52x ) {
@@ -952,10 +992,34 @@ endif;
  *
  * @return bool  True - if the plugin is active
  */
-if ( ! function_exists( 'et_is_woocommerce_plugin_active' ) ) :
-	function et_is_woocommerce_plugin_active() {
-		return class_exists( 'WooCommerce' );
-	}
+if ( ! function_exists( 'et_is_woocommerce_plugin_active' ) ):
+function et_is_woocommerce_plugin_active() {
+	return class_exists( 'WooCommerce' );
+}
+endif;
+
+/**
+ * Check if WPML plugin is active.
+ *
+ * @since 4.2
+ *
+ * @return bool
+ */
+function et_core_is_wpml_plugin_active() {
+	return class_exists( 'SitePress' );
+}
+
+if ( ! function_exists( 'et_is_product_taxonomy' ) ):
+/**
+ * Wraps {@see is_product_taxonomy()} to check for its existence before calling.
+ *
+ * @since 4.0
+ *
+ * @return bool
+ */
+function et_is_product_taxonomy() {
+	return function_exists( 'is_product_taxonomy' ) && is_product_taxonomy();
+}
 endif;
 
 
@@ -971,6 +1035,7 @@ if ( ! function_exists( 'et_core_add_allowed_protocols' ) ) :
  */
 function et_core_add_allowed_protocols( $protocols = array() ) {
 	$additional = array(
+		'skype', // Add Skype messaging protocol
 		'sms', // Add SMS text messaging protocol
 	);
 	$protocols  = array_unique( array_merge( $protocols, $additional ) );
@@ -1120,48 +1185,101 @@ if ( ! function_exists( 'et_get_attachment_id_by_url' ) ) :
  */
 function et_get_attachment_id_by_url( $url ) {
 	global $wpdb;
-	$cache = ET_Core_Cache_File::get( 'attachment_id_by_url' );
 
-	$attachment_id = 0;
+	/**
+	 * Filters the attachment ID.
+	 *
+	 * @since 4.2.1
+	 *
+	 * @param bool    $attachment_id_pre Default value. Default is false.
+	 * @param string  $url               URL of the image need to query.
+	 *
+	 * @return bool|int
+	 */
+	$attachment_id_pre = apply_filters( 'et_get_attachment_id_by_url_pre', false, $url );
+
+	if ( false !== $attachment_id_pre ) {
+		return $attachment_id_pre;
+	}
+
+	/**
+	 * Filters the attachment GUID.
+	 *
+	 * This filter intended to get the actual attachment guid URL in case the URL has been filtered before.
+	 * For example the URL has been modified to use CDN URL.
+	 *
+	 * @since 4.2.1
+	 *
+	 * @param string  $url URL of the image need to query.
+	 *
+	 * @return string
+	 */
+	$url = apply_filters( 'et_get_attachment_id_by_url_guid', $url );
 
 	// Normalize image URL.
-	$url = et_attachment_normalize_url( $url );
+	$normalized_url = et_attachment_normalize_url( $url );
 
-	$cache_key = $url ? $url : 'empty-url';
-
-	if ( isset( $cache[ $cache_key ] ) ) {
-		return $cache[ $cache_key ];
+	// Bail early if the url is invalid.
+	if ( ! $normalized_url ) {
+		return 0;
 	}
 
-	// Bail early if URL is invalid.
-	if ( ! $url ) {
-		return $attachment_id;
+	// Load cached data for attachment_id_by_url.
+	$cache = ET_Core_Cache_File::get( 'attachment_id_by_url' );
+
+	if ( isset( $cache[ $normalized_url ] ) ) {
+		if ( et_core_is_uploads_dir_url( $normalized_url ) ) {
+			return $cache[ $normalized_url ];
+		}
+
+		unset( $cache[ $normalized_url ] );
+		ET_Core_Cache_File::set( 'attachment_id_by_url', $cache );
 	}
+
+	// Strip the HTTP/S protocol.
+	$cleaned_url = preg_replace( '/^https?:/i', '', $normalized_url );
 
 	// Remove any thumbnail size suffix from the filename and use that as a fallback.
-	$fallback_url = preg_replace( '/-(\d+)x(\d+)\.(jpg|jpeg|gif|png)$/', '.$3', $url );
+	$fallback_url = preg_replace( '/-(\d+)x(\d+)\.(jpg|jpeg|gif|png)$/', '.$3', $cleaned_url );
 
-	// Scenario: Trying to find the attachment for a file called x-150x150.jpg.
-	// 1. Since WordPress adds the -150x150 suffix for thumbnail sizes we cannot be
-	// sure if this is an attachment or an attachment's generated thumbnail.
-	// 2. Since both x.jpg and x-150x150.jpg can be uploaded as separate attachments
-	// we must decide which is a better match.
-	// 3. The above is why we order by guid length and use the first result.
-	$attachments_query = $wpdb->prepare(
-		"SELECT id
-		FROM $wpdb->posts
-		WHERE `post_type` = %s
-			AND `guid` IN ( %s, %s )
-		ORDER BY CHAR_LENGTH( `guid` ) DESC",
-		'attachment',
-		esc_url_raw( $url ),
-		esc_url_raw( $fallback_url )
-	);
+	if ( $cleaned_url === $fallback_url ) {
+		$attachments_query = $wpdb->prepare(
+			"SELECT id
+			FROM $wpdb->posts
+			WHERE `post_type` = %s
+				AND `guid` IN ( %s, %s )",
+			'attachment',
+			esc_url_raw( "https:{$cleaned_url}" ),
+			esc_url_raw( "http:{$cleaned_url}" )
+		);
+	} else {
+		// Scenario: Trying to find the attachment for a file called x-150x150.jpg.
+		// 1. Since WordPress adds the -150x150 suffix for thumbnail sizes we cannot be
+		// sure if this is an attachment or an attachment's generated thumbnail.
+		// 2. Since both x.jpg and x-150x150.jpg can be uploaded as separate attachments
+		// we must decide which is a better match.
+		// 3. The above is why we order by guid length and use the first result.
+		$attachments_query = $wpdb->prepare(
+			"SELECT id
+			FROM $wpdb->posts
+			WHERE `post_type` = %s
+				AND `guid` IN ( %s, %s, %s, %s )
+			ORDER BY CHAR_LENGTH( `guid` ) DESC",
+			'attachment',
+			esc_url_raw( "https:{$cleaned_url}" ),
+			esc_url_raw( "https:{$fallback_url}" ),
+			esc_url_raw( "http:{$cleaned_url}" ),
+			esc_url_raw( "http:{$fallback_url}" )
+		);
+	}
 
 	$attachment_id = (int) $wpdb->get_var( $attachments_query );
 
-	$cache[ $cache_key ] = $attachment_id;
-	ET_Core_Cache_File::set( 'attachment_id_by_url', $cache );
+	// Cache data only if attachment ID is found.
+	if ( $attachment_id && et_core_is_uploads_dir_url( $normalized_url ) ) {
+		$cache[ $normalized_url ] = $attachment_id;
+		ET_Core_Cache_File::set( 'attachment_id_by_url', $cache );
+	}
 
 	return $attachment_id;
 }
@@ -1179,20 +1297,23 @@ if ( ! function_exists( 'et_get_attachment_size_by_url' ) ) :
  * @return array|string Detected image size width and height or 'full' on failure.
  */
 function et_get_attachment_size_by_url( $url, $default_size = 'full' ) {
-	$cache = ET_Core_Cache_File::get( 'attachment_size_by_url' );
-
 	// Normalize image URL.
-	$url = et_attachment_normalize_url( $url );
+	$normalized_url = et_attachment_normalize_url( $url );
 
-	$cache_key = $url ? $url : 'empty-url';
-
-	if ( isset( $cache[ $cache_key ] ) ) {
-		return $cache[ $cache_key ];
+	// Bail early if URL is invalid.
+	if ( ! $normalized_url ) {
+		return $default_size;
 	}
 
-	// Bail eraly if URL is invalid.
-	if ( ! $url ) {
-		return $default_size;
+	$cache = ET_Core_Cache_File::get( 'attachment_size_by_url' );
+
+	if ( isset( $cache[ $normalized_url ] ) ) {
+		if ( et_core_is_uploads_dir_url( $normalized_url ) ) {
+			return $cache[ $normalized_url ];
+		}
+
+		unset( $cache[ $normalized_url ] );
+		ET_Core_Cache_File::set( 'attachment_size_by_url', $cache );
 	}
 
 	$attachment_id = et_get_attachment_id_by_url( $url );
@@ -1217,8 +1338,11 @@ function et_get_attachment_size_by_url( $url, $default_size = 'full' ) {
 		$size = array( $match[1], $match[2] );
 	}
 
-	$cache[ $cache_key ] = $attachment_id;
-	ET_Core_Cache_File::set( 'attachment_size_by_url', $cache );
+	// Cache data only if size is found.
+	if ( $size !== $default_size && et_core_is_uploads_dir_url( $normalized_url ) ) {
+		$cache[ $normalized_url ] = $size;
+		ET_Core_Cache_File::set( 'attachment_size_by_url', $cache );
+	}
 
 	return $size;
 }
@@ -1230,36 +1354,56 @@ if ( ! function_exists( 'et_get_image_srcset_sizes' ) ) :
  *
  * @since 3.29.3
  *
- * @param string $img_src Image source attribute value.
+ * @param string $url Image source attribute value.
  *
  * @return (array|bool) Associative array of srcset & sizes attributes. False on failure.
  */
-function et_get_image_srcset_sizes( $img_src ) {
+function et_get_image_srcset_sizes( $url ) {
+	// Normalize image URL.
+	$normalized_url = et_attachment_normalize_url( $url );
+
+	// Bail early if URL is invalid.
+	if ( ! $normalized_url ) {
+		return array();
+	}
+
 	$cache = ET_Core_Cache_File::get( 'image_srcset_sizes' );
 
-	$cache_key = $img_src ? $img_src : 'empty-src';
+	if ( isset( $cache[ $normalized_url ] ) ) {
+		if ( et_core_is_uploads_dir_url( $normalized_url ) ) {
+			return $cache[ $normalized_url ];
+		}
 
-	if ( isset( $cache[ $cache_key ] ) ) {
-		return $cache[ $cache_key ];
+		unset( $cache[ $normalized_url ] );
+		ET_Core_Cache_File::set( 'image_srcset_sizes', $cache );
 	}
 
-	$attachment_id = et_get_attachment_id_by_url( $img_src );
+	$attachment_id = et_get_attachment_id_by_url( $url );
 	if ( ! $attachment_id ) {
-		return false;
+		return array();
 	}
 
-	$image_size = et_get_attachment_size_by_url( $img_src );
+	$image_size = et_get_attachment_size_by_url( $url );
 	if ( ! $image_size ) {
-		return false;
+		return array();
+	}
+
+	$srcset = wp_get_attachment_image_srcset( $attachment_id, $image_size );
+	$sizes  = wp_get_attachment_image_sizes( $attachment_id, $image_size );
+
+	if ( ! $srcset || ! $sizes ) {
+		return array();
 	}
 
 	$data = array(
-		'srcset' => wp_get_attachment_image_srcset( $attachment_id, $image_size ),
-		'sizes'  => wp_get_attachment_image_sizes( $attachment_id, $image_size ),
+		'srcset' => $srcset,
+		'sizes'  => $sizes,
 	);
 
-	$cache[ $cache_key ] = $data;
-	ET_Core_Cache_File::set( 'image_srcset_sizes', $cache );
+	if ( et_core_is_uploads_dir_url( $normalized_url ) ) {
+		$cache[ $normalized_url ] = $data;
+		ET_Core_Cache_File::set( 'image_srcset_sizes', $cache );
+	}
 
 	return $data;
 }
@@ -1287,16 +1431,41 @@ function et_attachment_normalize_url( $url ) {
 
 	// Set as full path URL.
 	if ( 0 !== strpos( $url, 'http' ) ) {
-		$url = site_url( $url );
+		$wp_upload_dir = wp_upload_dir( null, false );
+		$upload_dir    = str_replace( site_url( '/' ), '', $wp_upload_dir['baseurl'] );
+		$url_trimmed   = ltrim( $url, '/' );
+
+		if ( 0 === strpos( $url_trimmed, $upload_dir ) || 0 === strpos( $url_trimmed, 'wp-content' ) ) {
+			$url = site_url( $url_trimmed );
+		} else {
+			$url = $wp_upload_dir['baseurl'] . '/' . $url_trimmed;
+		}
 	}
 
 	// Validate URL format and file extension.
 	// Example: https://regex101.com/r/dXcpto/1.
-	if ( ! preg_match( '/^(http(s?)\:\/\/)(.+)\.(jpg|jpeg|gif|png)$/', $url ) ) {
+	if ( ! filter_var( $url, FILTER_VALIDATE_URL ) || ! preg_match( '/^(.+)\.(jpg|jpeg|gif|png)$/', $url ) ) {
 		return false;
 	}
 
 	return esc_url( $url );
+}
+endif;
+
+if ( ! function_exists( 'et_core_is_uploads_dir_url' ) ) :
+/**
+ * Check if a URL starts with the base upload directory URL.
+ *
+ * @since 4.2
+ *
+ * @param string $url The URL being looked up.
+ *
+ * @return bool
+ */
+function et_core_is_uploads_dir_url( $url ) {
+	$upload_dir = wp_upload_dir( null, false );
+
+	return et_()->starts_with( $url, $upload_dir['baseurl'] );
 }
 endif;
 
@@ -1383,4 +1552,172 @@ function et_core_enqueue_js_admin() {
 		wp_enqueue_script( 'htmlhint' );
 	}
 }
+endif;
+
+/**
+ * Get ET account information.
+ *
+ * @since 4.0
+ *
+ * @return array
+ */
+function et_core_get_et_account() {
+	$utils           = ET_Core_Data_Utils::instance();
+	$updates_options = get_site_option( 'et_automatic_updates_options', array() );
+
+	return array(
+		'et_username' => $utils->array_get( $updates_options, 'username', '' ),
+		'et_api_key'  => $utils->array_get( $updates_options, 'api_key', '' ),
+		'status'      => get_site_option( 'et_account_status', 'not_active' ),
+	);
+}
+
+/**
+ * Get all meta saved by the builder for a given post.
+ *
+ * @since 4.0.10
+ *
+ * @param integer $post_id
+ *
+ * @return array
+ */
+function et_core_get_post_builder_meta( $post_id ) {
+	$raw_meta = get_post_meta( $post_id );
+	$meta     = array();
+
+	foreach ( $raw_meta as $key => $values ) {
+		if ( strpos( $key, '_et_pb_' ) !== 0 && strpos( $key, '_et_builder_' ) !== 0 ) {
+			continue;
+		}
+
+		if ( strpos( $key, '_et_pb_ab_' ) === 0 ) {
+			// Do not copy A/B meta as it is post-specific.
+			continue;
+		}
+
+		foreach ( $values as $value ) {
+			$meta[] = array(
+				'key'   => $key,
+				'value' => $value,
+			);
+		}
+	}
+
+	return $meta;
+}
+
+if ( ! function_exists( 'et_core_parse_google_fonts_json' ) ) :
+	/**
+	 * Parse google fonts json to array.
+	 *
+	 * @since 4.0.10
+	 *
+	 * @param string $json Google fonts json file content.
+	 *
+	 * @return array Associative array list of google fonts.
+	 */
+	function et_core_parse_google_fonts_json( $fonts_json ) {
+		if ( ! $fonts_json || ! is_string( $fonts_json ) ) {
+			return array();
+		}
+
+		$fonts_json_decoded = json_decode( $fonts_json, true );
+
+		if ( ! $fonts_json_decoded || empty( $fonts_json_decoded['items'] ) ) {
+			return array();
+		}
+
+		$fonts = array();
+
+		foreach ( $fonts_json_decoded['items'] as $font_item ) {
+			if ( ! isset( $font_item['family'], $font_item['variants'], $font_item['subsets'], $font_item['category'] ) ) {
+				continue;
+			}
+
+			$fonts[ sanitize_text_field( $font_item['family'] ) ] = array(
+				'styles'        => sanitize_text_field( implode( ',', $font_item['variants'] ) ),
+				'character_set' => sanitize_text_field( implode( ',', $font_item['subsets'] ) ),
+				'type'          => sanitize_text_field( $font_item['category'] ),
+			);
+		}
+
+		ksort( $fonts );
+
+		return $fonts;
+	}
+endif;
+
+if ( ! function_exists( 'et_core_get_saved_google_fonts' ) ) :
+	/**
+	 * Get saved google fonts list.
+	 *
+	 * @since 4.0.10
+	 *
+	 * @return array Associative array list of google fonts.
+	 */
+	function et_core_get_saved_google_fonts() {
+		static $saved_google_fonts;
+
+		if ( ! is_null( $saved_google_fonts ) ) {
+			return $saved_google_fonts;
+		}
+
+		$json_file = ET_CORE_PATH . 'json-data/google-fonts.json';
+
+		if ( ! et_()->WPFS()->is_readable( $json_file ) ) {
+			return array();
+		}
+
+		$saved_google_fonts = et_core_parse_google_fonts_json( et_()->WPFS()->get_contents( $json_file ) );
+
+		return $saved_google_fonts;
+	}
+endif;
+
+if ( ! function_exists( 'et_core_get_websafe_fonts' ) ) :
+	/**
+	 * Get websafe fonts list.
+	 *
+	 * @since 4.0.10
+	 *
+	 * @return array Associative array list of websafe fonts.
+	 */
+	function et_core_get_websafe_fonts() {
+		$websafe_fonts = array(
+			'Georgia' => array(
+				'styles'        => '300italic,400italic,600italic,700italic,800italic,400,300,600,700,800',
+				'character_set' => 'cyrillic,greek,latin',
+				'type'          => 'serif',
+			),
+			'Times New Roman' => array(
+				'styles'        => '300italic,400italic,600italic,700italic,800italic,400,300,600,700,800',
+				'character_set' => 'arabic,cyrillic,greek,hebrew,latin',
+				'type'          => 'serif',
+			),
+			'Arial' => array(
+				'styles'        => '300italic,400italic,600italic,700italic,800italic,400,300,600,700,800',
+				'character_set' => 'arabic,cyrillic,greek,hebrew,latin',
+				'type'          => 'sans-serif',
+			),
+			'Trebuchet' => array(
+				'styles'         => '300italic,400italic,600italic,700italic,800italic,400,300,600,700,800',
+				'character_set'  => 'cyrillic,latin',
+				'type'           => 'sans-serif',
+				'add_ms_version' => true,
+			),
+			'Verdana' => array(
+				'styles'        => '300italic,400italic,600italic,700italic,800italic,400,300,600,700,800',
+				'character_set' => 'cyrillic,latin',
+				'type'          => 'sans-serif',
+			),
+		);
+	
+		foreach ( array_keys( $websafe_fonts ) as $font_name ) {
+			$websafe_fonts[ $font_name ]['standard'] = true;
+		}
+	
+		ksort( $websafe_fonts );
+	
+		return apply_filters( 'et_websafe_fonts', $websafe_fonts );
+	}
 endif;

@@ -46,7 +46,8 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 				'header' => array(
 					'label'    => esc_html__( 'Title', 'et_builder' ),
 					'css'      => array(
-						'main' => "{$this->main_css_element} h4, {$this->main_css_element} h4 a, {$this->main_css_element} h1.et_pb_module_header, {$this->main_css_element} h1.et_pb_module_header a, {$this->main_css_element} h2.et_pb_module_header, {$this->main_css_element} h2.et_pb_module_header a, {$this->main_css_element} h3.et_pb_module_header, {$this->main_css_element} h3.et_pb_module_header a, {$this->main_css_element} h5.et_pb_module_header, {$this->main_css_element} h5.et_pb_module_header a, {$this->main_css_element} h6.et_pb_module_header, {$this->main_css_element} h6.et_pb_module_header a",
+						'main'  => "{$this->main_css_element} .et_pb_module_header, {$this->main_css_element} .et_pb_module_header a",
+						'hover' => "{$this->main_css_element}:hover .et_pb_module_header, {$this->main_css_element}:hover .et_pb_module_header a",
 					),
 					'header_level' => array(
 						'default' => 'h4',
@@ -78,9 +79,11 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 				'image'   => array(
 					'css'             => array(
 						'main' => array(
-							'border_radii' => "%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap",
-							'border_styles' => "%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap",
-						)
+							'border_radii'        => '%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap',
+							'border_radii_hover'  => '%%order_class%%:hover .et_pb_main_blurb_image .et_pb_image_wrap',
+							'border_styles'       => '%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap',
+							'border_styles_hover' => '%%order_class%%:hover .et_pb_main_blurb_image .et_pb_image_wrap',
+						),
 					),
 					'label_prefix'    => esc_html__( 'Image', 'et_builder' ),
 					'tab_slug'        => 'advanced',
@@ -100,11 +103,12 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 						'use_icon' => 'off',
 					),
 					'css'                 => array(
-						'main' => '%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap',
+						'main'        => '%%order_class%% .et_pb_main_blurb_image .et_pb_image_wrap',
+						'hover'       => '%%order_class%%:hover .et_pb_main_blurb_image .et_pb_image_wrap',
 						'show_if_not' => array(
 							'use_icon' => 'on',
 						),
-						'overlay' => 'inset',
+						'overlay'     => 'inset',
 					),
 					'default_on_fronts'  => array(
 						'color'    => '',
@@ -144,7 +148,8 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 					'toggle_slug' => 'icon_settings',
 					'depends_show_if' => 'off',
 					'css'                 => array(
-						'main' => '%%order_class%% .et_pb_main_blurb_image',
+						'main'  => '%%order_class%% .et_pb_main_blurb_image',
+						'hover' => '%%order_class%%:hover .et_pb_main_blurb_image',
 					),
 				),
 			),
@@ -369,6 +374,20 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 				'default_on_front'  => 'top',
 				'mobile_options'    => true,
 			),
+			'icon_alignment' => array(
+				'label'           => esc_html__( 'Image/Icon Alignment', 'et_builder' ),
+				'description'     => esc_html__( 'Align image/icon to the left, right or center.', 'et_builder' ),
+				'type'            => 'align',
+				'option_category' => 'layout',
+				'options'         => et_builder_get_text_orientation_options( array( 'justified' ) ),
+				'tab_slug'        => 'advanced',
+				'toggle_slug'     => 'icon_settings',
+				'default'         => 'center',
+				'mobile_options'  => true,
+				'show_if'         => array(
+					'icon_placement' => 'top',
+				),
+			),
 			'content' => array(
 				'label'             => esc_html__( 'Body', 'et_builder' ),
 				'type'              => 'tiny_mce',
@@ -530,17 +549,12 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 		$circle_border_color_tablet      = isset( $circle_border_color_values['tablet'] ) ? $circle_border_color_values['tablet'] : '';
 		$circle_border_color_phone       = isset( $circle_border_color_values['phone'] ) ? $circle_border_color_values['phone'] : '';
 
-		$background_layout               = $this->props['background_layout'];
-		$background_layout_hover         = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values        = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet        = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone         = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 		$icon_placement                  = $this->props['icon_placement'];
 		$icon_placement_values           = et_pb_responsive_options()->get_property_values( $this->props, 'icon_placement' );
 		$icon_placement_tablet           = isset( $icon_placement_values['tablet'] ) ? $icon_placement_values['tablet'] : '';
 		$icon_placement_phone            = isset( $icon_placement_values['phone'] ) ? $icon_placement_values['phone'] : '';
+		$is_icon_placement_responsive    = et_pb_responsive_options()->is_responsive_enabled( $this->props, 'icon_placement' );
+		$is_icon_placement_top           = ! $is_icon_placement_responsive ? 'top' === $icon_placement : in_array( 'top', $icon_placement_values );
 
 		$animation                       = $this->props['animation'];
 		$animation_values                = et_pb_responsive_options()->get_property_values( $this->props, 'animation' );
@@ -551,6 +565,87 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 		$is_image_svg   = isset( $image_pathinfo['extension'] ) ? 'svg' === $image_pathinfo['extension'] : false;
 
 		$icon_selector = '%%order_class%% .et-pb-icon';
+
+		// Icon/image alignment is only rendered if icon/image placement is set to `top`. Note: due
+		// to responsive option, icon placement can be set to `left` on desktop but `top` on tablet;
+		// this case is considered truthy for $is_icon_placement_top
+		if ( $is_icon_placement_top ) {
+			$is_icon                    = 'on' === $use_icon;
+			$icon_alignment             = $this->props['icon_alignment'];
+			$icon_alignment_values      = et_pb_responsive_options()->get_property_values( $this->props, 'icon_alignment' );
+			$icon_alignment_last_edited = $this->props['icon_alignment_last_edited'];
+			$icon_alignment_margins     = array(
+				'left'   => 'auto auto auto 0',
+				'center' => 'auto',
+				'right'  => 'auto 0 auto auto',
+			);
+
+			// Icon and image use different method of aligning and DOM structure. However, if the image's
+			// width is less than the wrapper width, it'll need icon's text-align style to align it
+			// Hence icon's alignment styling is always being outputted, while image is only when needed
+			$icon_alignment_selector  = '%%order_class%% .et_pb_blurb_content';
+			$image_alignment_selector = '%%order_class%%.et_pb_blurb .et_pb_image_wrap';
+
+			if ( et_pb_get_responsive_status( $icon_alignment_last_edited ) && '' !== implode( $icon_alignment_values, '' ) ) {
+				// Icon and less than wrapper width image alignment style
+				et_pb_responsive_options()->generate_responsive_css(
+					$icon_alignment_values,
+					$icon_alignment_selector,
+					'text-align',
+					$render_slug,
+					'',
+					'align'
+				);
+
+				// Image alignment style
+				if ( ! $is_icon ) {
+					$image_alignment_values = array();
+
+					foreach( $icon_alignment_values as $breakpoint => $alignment ) {
+						$image_alignment_values[ $breakpoint ] = et_()->array_get(
+							$icon_alignment_margins,
+							$alignment,
+							''
+						);
+					}
+
+					// Image alignment style
+					et_pb_responsive_options()->generate_responsive_css(
+						$image_alignment_values,
+						$image_alignment_selector,
+						'margin',
+						$render_slug,
+						'',
+						'align'
+					);
+				}
+			} else {
+				// Let default css handle the alignment if it isn't left or right
+				if ( in_array( $icon_alignment, array( 'left', 'right' ) ) ) {
+					$icon_alignment_prop_value = $is_icon ? $icon_alignment : et_()->array_get( $icon_alignment_margins, $icon_alignment, '' );
+
+					// Icon and less than wrapper width image alignment style
+					ET_Builder_Element::set_style( $render_slug, array(
+						'selector'    => $icon_alignment_selector,
+						'declaration' => sprintf(
+							'text-align: %1$s;',
+							esc_html( $icon_alignment )
+						),
+					) );
+
+					// Image alignment style
+					if ( ! $is_icon ) {
+						ET_Builder_Element::set_style( $render_slug, array(
+							'selector'    => $image_alignment_selector,
+							'declaration' => sprintf(
+								'margin: %1$s;',
+								esc_html( et_()->array_get( $icon_alignment_margins, $icon_alignment, '' ) )
+							),
+						) );
+					}
+				}
+			}
+		}
 
 		if ( 'off' !== $use_icon_font_size ) {
 			$font_size_responsive_active = et_pb_get_responsive_status( $icon_font_size_last_edited );
@@ -837,18 +932,13 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 
 		// Module classnames
 		$this->add_classname( array(
-			"et_pb_bg_layout_{$background_layout}",
 			$this->get_text_orientation_classname(),
 			sprintf( ' et_pb_blurb_position_%1$s', esc_attr( $icon_placement ) ),
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( ! empty( $icon_placement_tablet ) ) {
 			$this->add_classname( "et_pb_blurb_position_{$icon_placement_tablet}_tablet" );
@@ -858,18 +948,8 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 			$this->add_classname( "et_pb_blurb_position_{$icon_placement_phone}_phone" );
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		$content = $multi_view->render_element( array(
 			'tag'     => 'div',
@@ -880,7 +960,7 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 		) );
 
 		$output = sprintf(
-			'<div%5$s class="%4$s"%8$s%9$s>
+			'<div%5$s class="%4$s"%8$s>
 				%7$s
 				%6$s
 				<div class="et_pb_blurb_content">
@@ -898,8 +978,7 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 			$this->module_id(), // #5
 			$video_background,
 			$parallax_image_background,
-			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover )
+			et_core_esc_previously( $data_background_layout )
 		);
 
 		return $output;
@@ -909,7 +988,7 @@ class ET_Builder_Module_Blurb extends ET_Builder_Module {
 	 * Filter multi view value.
 	 *
 	 * @since 3.27.1
-	 * 
+	 *
 	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
 	 *
 	 * @param mixed $raw_value Props raw value.

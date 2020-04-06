@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -102,14 +102,8 @@ class ET_Builder_Module_Woocommerce_Breadcrumb extends ET_Builder_Module {
 			),
 			'margin_padding' => array(
 				'css'            => array(
-					'margin'    => '%%order_class%%',
+					'margin'    => '%%order_class%% .woocommerce-breadcrumb',
 					'important' => 'all',
-				),
-				'custom_margin'  => array(
-					'default' => '0em|0em|1em|0em|false|false',
-				),
-				'custom_padding' => array(
-					'default' => '0em|0em|0em|0em|false|false',
 				),
 			),
 			'text'           => array(
@@ -144,6 +138,8 @@ class ET_Builder_Module_Woocommerce_Breadcrumb extends ET_Builder_Module {
 	 *
 	 * Fields from Parent module that may be not needed are also removed.
 	 *
+	 * @since 4.0 Removed Hover options from Breadcrumb URL.
+	 *
 	 * @return array Parent's fields w/ module specific fields.
 	 */
 	public function get_fields() {
@@ -152,7 +148,7 @@ class ET_Builder_Module_Woocommerce_Breadcrumb extends ET_Builder_Module {
 			'product'              => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__breadcrumb',
 					),
@@ -185,7 +181,6 @@ class ET_Builder_Module_Woocommerce_Breadcrumb extends ET_Builder_Module {
 				'toggle_slug'     => 'main_content',
 				'default'         => get_home_url(),
 				'mobile_options'  => true,
-				'hover'           => 'tabs',
 				'dynamic_content' => 'url',
 			),
 			'breadcrumb_separator' => array(
@@ -246,8 +241,11 @@ class ET_Builder_Module_Woocommerce_Breadcrumb extends ET_Builder_Module {
 		 * Breadcrumb customization is not required when resolving dynamic content field.
 		 * Hence we exclude customizations if the AJAX request is to resolve dynamic content fields.
 		 */
-		if ( ! et_fb_is_resolve_post_content_callback_ajax()
-			 && ( et_fb_enabled() || et_fb_is_builder_ajax() || et_fb_is_computed_callback_ajax() ) ) {
+		$main_query_post_id = ET_Post_Stack::get_main_post_id();
+		$layout_post_id     = ET_Builder_Element::get_layout_id();
+		$is_fb              = et_core_is_fb_enabled() && $main_query_post_id === $layout_post_id;
+
+		if ( ! et_fb_is_resolve_post_content_callback_ajax() && ( $is_fb || et_fb_is_builder_ajax() || et_fb_is_computed_callback_ajax() ) ) {
 			$args = wp_parse_args(
 				array(
 					'breadcrumb_home_text' => '%HOME_TEXT%',

@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -129,6 +129,8 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 						'main'         => '%%order_class%% .button',
 						'limited_main' => '%%order_class%% .button',
 						'alignment'    => '%%order_class%% .et_pb_module_inner > form',
+						// Setting to TRUE since it only checks for the value's existence.
+						'important'    => true,
 					),
 
 					/*
@@ -240,8 +242,7 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 					),
 					'margin_padding'  => array(
 						'css' => array(
-							'main'      => '%%order_class%% input',
-							'padding'   => '%%order_class%% input, %%order_class%% select',
+							'main'      => '%%order_class%%.et_pb_module .et_pb_module_inner form.cart .variations tr',
 							'important' => array( 'custom_padding' ),
 						),
 					),
@@ -285,6 +286,7 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 							'css'          => array(
 								'main'      => array(
 									'border_styles' => '%%order_class%%.et_pb_module .et_pb_module_inner form.cart .variations td select',
+									'border_radii'  => '%%order_class%%.et_pb_module .et_pb_module_inner form.cart .variations td select',
 								),
 								'important' => 'all',
 							),
@@ -343,7 +345,7 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 			'product'        => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__add_to_cart',
 					),
@@ -407,8 +409,6 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 	/**
 	 * Get add to cart markup as string
 	 *
-	 * @since 3.29
-	 *
 	 * @param array $args Additional arguments.
 	 *
 	 * @return string
@@ -460,6 +460,70 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 	}
 
 	/**
+	 * Calculates any required additional CSS.
+	 *
+	 * Dropdown menu's Bottom & Left margin affects the Dropdown arrow placement.
+	 * This is handled using additional CSS.
+	 *
+	 * @param array $attrs
+	 * @param string $render_slug
+	 *
+	 * @since 4.3.4
+	 */
+	public function add_additional_css( $attrs, $render_slug ) {
+		if ( ! is_array( $attrs ) || empty( $attrs ) ) {
+			return;
+		}
+
+		$prop = 'dropdown_menus_custom_margin';
+
+		$values      = et_pb_responsive_options()->get_property_values( $attrs, $prop );
+		$hover_value = et_pb_hover_options()->get_value( $prop, $attrs, '' );
+		$processed_values = array();
+
+		foreach ( $values as $device => $value ) {
+			if ( empty( $value ) ) {
+				continue;
+			}
+
+			$processed_values[ $device ] = $this->calculate_dropdown_arrow_margin( $value );
+		}
+
+		// Generate style for desktop, tablet, and phone.
+		et_pb_responsive_options()->declare_responsive_css(
+			$processed_values,
+			'%%order_class%% form.cart .variations td.value span:after',
+			$render_slug
+		);
+	}
+
+	/**
+	 * Calculates Dropdown's arrow margin values.
+	 *
+	 * The Dropdown's arrow margin values depend on the actual
+	 * Dropdown margin values.
+	 *
+	 * @since 4.3.4
+	 *
+	 * @param $value
+	 *
+	 * @return string
+	 */
+	public function calculate_dropdown_arrow_margin( $value ) {
+		$dropdown_margin        = explode( '|', $value );
+		$dropdown_bottom_margin = empty( $dropdown_margin[2] ) ? '0px' : $dropdown_margin[2];
+		$dropdown_left_margin   = empty( $dropdown_margin[3] ) ? '0px' : $dropdown_margin[3];
+
+		$declarations = array(
+			sprintf( 'margin-top: calc( 3px - %s )', $dropdown_bottom_margin ),
+			sprintf( 'right: calc( 10px - %s )', $dropdown_left_margin ),
+		);
+
+		// The last declaration wouldn't have the `;`. So appending manually.
+		return implode( ';', $declarations ) . ';';
+	}
+
+	/**
 	 * Renders the module output.
 	 *
 	 * @param  array  $attrs       List of attributes.
@@ -489,6 +553,8 @@ class ET_Builder_Module_Woocommerce_Add_To_Cart extends ET_Builder_Module {
 		ET_Builder_Module_Helper_Woocommerce_Modules::process_custom_button_icons( $render_slug, $this );
 
 		$this->add_classname( $this->get_text_orientation_classname() );
+
+		$this->add_additional_css( $this->props, $render_slug );
 
 		add_filter( "et_builder_module_{$render_slug}_outer_wrapper_attrs", array(
 			$this,
