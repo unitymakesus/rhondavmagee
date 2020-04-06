@@ -54,6 +54,9 @@ class ET_Builder_Module_Fullwidth_Image extends ET_Builder_Module {
 			'text'                  => false,
 			'button'                => false,
 			'link_options'          => false,
+			'position_fields'       => array(
+				'default' => 'relative',
+			),
 		);
 
 		$this->help_videos = array(

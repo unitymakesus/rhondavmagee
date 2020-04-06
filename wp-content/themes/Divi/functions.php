@@ -89,6 +89,7 @@ function et_setup_theme() {
 
 	// Load editor styling
 	add_editor_style( 'css/editor-style.css' );
+	add_editor_style( 'css/editor-blocks.css' );
 
 	// Load unminified scripts based on selected theme options field
 	add_filter( 'et_load_unminified_scripts', 'et_divi_load_unminified_scripts' );
@@ -207,9 +208,9 @@ function et_add_home_link( $args ) {
 add_filter( 'wp_page_menu_args', 'et_add_home_link' );
 
 function et_divi_load_scripts_styles(){
-	global $wp_styles;
+	global $wp_styles, $et_user_fonts_queue;
 
-	$script_suffix = et_load_unminified_scripts() ? '' : '.min';
+	$script_suffix = et_load_unminified_scripts() ? '' : '.unified';
 	$style_suffix  = et_load_unminified_styles() && ! is_child_theme() ? '.dev' : '';
 	$template_dir  = get_template_directory_uri();
 	$theme_version = et_get_theme_version();
@@ -229,17 +230,24 @@ function et_divi_load_scripts_styles(){
 		$dependencies_array[] = 'jquery-effects-core';
 	}
 
-	wp_enqueue_script( 'et-jquery-touch-mobile', $template_dir . '/includes/builder/scripts/jquery.mobile.custom.min.js', array( 'jquery' ), $theme_version, true );
+	wp_enqueue_script( 'et-jquery-touch-mobile', $template_dir . '/includes/builder/scripts/ext/jquery.mobile.custom.min.js', array( 'jquery' ), $theme_version, true );
 
 	if ( et_load_unminified_scripts() ) {
 		$dependencies_array[] = 'et-jquery-touch-mobile';
 	}
 
 	wp_enqueue_script( 'divi-custom-script', $template_dir . '/js/custom' . $script_suffix . '.js', $dependencies_array , $theme_version, true );
-	wp_localize_script( 'divi-custom-script', 'DIVI', array(
+
+	$divi_data = array(
 		'item_count'  => esc_html__( '%d Item', 'divi' ),
 		'items_count' => esc_html__( '%d Items', 'divi' ),
-	) );
+	);
+
+	if ( et_core_is_fb_enabled() ) {
+		$divi_data['row_selector'] = et_divi_get_row_advanced_options_selector_replacement();
+	}
+
+	wp_localize_script( 'divi-custom-script', 'DIVI', $divi_data );
 
 	if ( 'on' === et_get_option( 'divi_smooth_scroll', false ) ) {
 		wp_enqueue_script( 'smooth-scroll', $template_dir . '/js/smoothscroll.js', array( 'jquery' ), $theme_version, true );
@@ -283,6 +291,10 @@ function et_divi_load_scripts_styles(){
 
 			et_builder_enqueue_font( $single_font );
 		}
+
+		if ( function_exists( 'et_builder_enqueue_user_fonts' ) && ! empty( $et_user_fonts_queue ) ) {
+			printf( '<style id="et-divi-userfonts">%1$s</style>', et_core_esc_previously( et_builder_enqueue_user_fonts( $et_user_fonts_queue ) ) );
+		}
 	}
 
 	/*
@@ -299,7 +311,7 @@ add_action( 'wp_enqueue_scripts', 'et_divi_load_scripts_styles' );
  */
 function et_divi_replace_stylesheet() {
 	// Apply to Custom Post Types when Builder used only.
-	if ( ! et_builder_post_is_of_custom_post_type() || ! et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+	if ( ! et_builder_is_custom_post_type_archive() && ( ! et_builder_post_is_of_custom_post_type( get_the_ID() ) || ! et_pb_is_pagebuilder_used( get_the_ID() ) ) ) {
 		return;
 	}
 
@@ -364,7 +376,7 @@ function et_maybe_add_scroll_to_anchor_fix() {
 	if ( 'on' === $add_scroll_to_anchor_fix ) {
 		echo '<script>
 				document.addEventListener( "DOMContentLoaded", function( event ) {
-					window.et_location_hash = window.location.hash;
+					window.et_location_hash = window.location.hash.replace(/[^a-zA-Z0-9-_#]/g, "");
 					if ( "" !== window.et_location_hash ) {
 						// Prevent jump to anchor - Firefox
 						window.scrollTo( 0, 0 );
@@ -372,9 +384,14 @@ function et_maybe_add_scroll_to_anchor_fix() {
 						if( et_anchor_element === null ) {
 						    return;
 						}
-						window.et_location_hash_style = et_anchor_element.style.display;
-						// Prevent jump to anchor - Other Browsers
-						et_anchor_element.style.display = "none";
+						// bypass auto scrolling, if supported
+						if ("scrollRestoration" in history) {
+							history.scrollRestoration = "manual";
+						} else {
+							// Prevent jump to anchor - Other Browsers
+							window.et_location_hash_style = et_anchor_element.style.display;
+							et_anchor_element.style.display = "none";
+						}
 					}
 				} );
 		</script>';
@@ -440,8 +457,9 @@ function et_single_settings_meta_box( $post ) {
 	wp_nonce_field( basename( __FILE__ ), 'et_settings_nonce' );
 
 	$page_layout = get_post_meta( $post_id, '_et_pb_page_layout', true );
+
 	if ( 'product' === $post->post_type && empty( $page_layout ) ) {
-		$page_layout = et_get_option( 'divi_shop_page_sidebar' );
+		$page_layout = et_get_option( 'et_pb_woocommerce_product_layout' );
 	}
 
 	$side_nav = get_post_meta( $post_id, '_et_pb_side_nav', true );
@@ -490,87 +508,108 @@ function et_single_settings_meta_box( $post ) {
 		: false;
 	$post_bg_layout = ( $layout = get_post_meta( $post_id, '_et_post_bg_layout', true ) ) && '' !== $layout
 		? $layout
-		: 'light'; ?>
+		: 'light';
 
-	<p class="et_pb_page_settings et_pb_page_layout_settings">
-		<label for="et_pb_page_layout" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Page Layout', 'Divi' ); ?>: </label>
+	$tb_layouts = et_theme_builder_get_template_layouts( ET_Theme_Builder_Request::from_post( $post_id ) );
+	$container  = array( 'et_pb_page_settings_container' );
 
-		<select id="et_pb_page_layout" name="et_pb_page_layout">
-		<?php
-		foreach ( $page_layouts as $layout_value => $layout_name ) {
-			printf( '<option value="%2$s"%3$s%4$s>%1$s</option>',
-				esc_html( $layout_name ),
-				esc_attr( $layout_value ),
-				selected( $layout_value, $page_layout, false ),
-				'et_full_width_page' === $layout_value && ! $is_builder_active ? ' style="display: none;"' : ''
-			);
-		} ?>
-		</select>
-	</p>
-	<p class="et_pb_page_settings et_pb_side_nav_settings" style="display: none;">
-		<label for="et_pb_side_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Dot Navigation', 'Divi' ); ?>: </label>
+	if ( ! empty( $tb_layouts ) ) {
+		$container[] = 'et_pb_page_settings_container--theme-builder';
 
-		<select id="et_pb_side_nav" name="et_pb_side_nav">
-			<option value="off" <?php selected( 'off', $side_nav ); ?>><?php esc_html_e( 'Off', 'Divi' ); ?></option>
-			<option value="on" <?php selected( 'on', $side_nav ); ?>><?php esc_html_e( 'On', 'Divi' ); ?></option>
-		</select>
-	</p>
-	<p class="et_pb_page_settings">
-		<label for="et_pb_post_hide_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Hide Nav Before Scroll', 'Divi' ); ?>: </label>
+		if ( ! empty( $tb_layouts ) && $tb_layouts[ ET_THEME_BUILDER_HEADER_LAYOUT_POST_TYPE ]['override'] ) {
+			$container[] = 'et_pb_page_settings_container--tb-has-header';
+		}
 
-		<select id="et_pb_post_hide_nav" name="et_pb_post_hide_nav">
-			<option value="default" <?php selected( 'default', $post_hide_nav ); ?>><?php esc_html_e( 'Default', 'Divi' ); ?></option>
-			<option value="no" <?php selected( 'no', $post_hide_nav ); ?>><?php esc_html_e( 'Off', 'Divi' ); ?></option>
-			<option value="on" <?php selected( 'on', $post_hide_nav ); ?>><?php esc_html_e( 'On', 'Divi' ); ?></option>
-		</select>
-	</p>
+		if ( ! empty( $tb_layouts ) && $tb_layouts[ ET_THEME_BUILDER_BODY_LAYOUT_POST_TYPE ]['override'] ) {
+			$container[] = 'et_pb_page_settings_container--tb-has-body';
+		}
 
-<?php if ( 'post' === $post->post_type ) : ?>
-	<p class="et_pb_page_settings et_pb_single_title" style="display: none;">
-		<label for="et_single_title" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Post Title', 'Divi' ); ?>: </label>
-
-		<select id="et_single_title" name="et_single_title">
-			<option value="on" <?php selected( 'on', $show_title ); ?>><?php esc_html_e( 'Show', 'Divi' ); ?></option>
-			<option value="off" <?php selected( 'off', $show_title ); ?>><?php esc_html_e( 'Hide', 'Divi' ); ?></option>
-		</select>
-	</p>
-
-	<p class="et_divi_quote_settings et_divi_audio_settings et_divi_link_settings et_divi_format_setting et_pb_page_settings">
-		<label for="et_post_use_bg_color" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Use Background Color', 'Divi' ); ?></label>
-		<input name="et_post_use_bg_color" type="checkbox" id="et_post_use_bg_color" <?php checked( $post_use_bg_color ); ?> />
-	</p>
-
-	<p class="et_post_bg_color_setting et_divi_format_setting et_pb_page_settings">
-		<input id="et_post_bg_color" name="et_post_bg_color" class="color-picker-hex" type="text" maxlength="7" placeholder="<?php esc_attr_e( 'Hex Value', 'Divi' ); ?>" value="<?php echo esc_attr( $post_bg_color ); ?>" data-default-color="#ffffff" />
-	</p>
-
-	<p class="et_divi_quote_settings et_divi_audio_settings et_divi_link_settings et_divi_format_setting">
-		<label for="et_post_bg_layout" style="font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Text Color', 'Divi' ); ?>: </label>
-		<select id="et_post_bg_layout" name="et_post_bg_layout">
-	<?php
-		foreach ( $layouts as $layout_name => $layout_title )
-			printf( '<option value="%s"%s>%s</option>',
-				esc_attr( $layout_name ),
-				selected( $layout_name, $post_bg_layout, false ),
-				esc_html( $layout_title )
-			);
+		if ( ! empty( $tb_layouts ) && $tb_layouts[ ET_THEME_BUILDER_FOOTER_LAYOUT_POST_TYPE ]['override'] ) {
+			$container[] = 'et_pb_page_settings_container--tb-has-footer';
+		}
+	}
 	?>
-		</select>
-	</p>
-<?php endif;
 
-if ( 'project' === $post->post_type ) : ?>
-	<p class="et_pb_page_settings et_pb_project_nav" style="display: none;">
-		<label for="et_project_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Project Navigation', 'Divi' ); ?>: </label>
+	<div class="<?php echo esc_attr( implode( ' ', $container ) ); ?>">
+		<p class="et_pb_page_settings et_pb_page_layout_settings">
+			<label for="et_pb_page_layout" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Page Layout', 'Divi' ); ?>: </label>
 
-		<select id="et_project_nav" name="et_project_nav">
-			<option value="off" <?php selected( 'off', $project_nav ); ?>><?php esc_html_e( 'Hide', 'Divi' ); ?></option>
-			<option value="on" <?php selected( 'on', $project_nav ); ?>><?php esc_html_e( 'Show', 'Divi' ); ?></option>
-		</select>
-	</p>
-<?php endif;
+			<select id="et_pb_page_layout" name="et_pb_page_layout">
+			<?php
+			foreach ( $page_layouts as $layout_value => $layout_name ) {
+				printf( '<option value="%2$s"%3$s%4$s>%1$s</option>',
+					esc_html( $layout_name ),
+					esc_attr( $layout_value ),
+					selected( $layout_value, $page_layout, false ),
+					'et_full_width_page' === $layout_value && ! $is_builder_active ? ' style="display: none;"' : ''
+				);
+			} ?>
+			</select>
+		</p>
+		<p class="et_pb_page_settings et_pb_side_nav_settings" style="display: none;">
+			<label for="et_pb_side_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Dot Navigation', 'Divi' ); ?>: </label>
 
-	if ( 'product' === $post->post_type && $is_builder_active ) : ?>
+			<select id="et_pb_side_nav" name="et_pb_side_nav">
+				<option value="off" <?php selected( 'off', $side_nav ); ?>><?php esc_html_e( 'Off', 'Divi' ); ?></option>
+				<option value="on" <?php selected( 'on', $side_nav ); ?>><?php esc_html_e( 'On', 'Divi' ); ?></option>
+			</select>
+		</p>
+		<p class="et_pb_page_settings et_pb_nav_settings">
+			<label for="et_pb_post_hide_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Hide Nav Before Scroll', 'Divi' ); ?>: </label>
+
+			<select id="et_pb_post_hide_nav" name="et_pb_post_hide_nav">
+				<option value="default" <?php selected( 'default', $post_hide_nav ); ?>><?php esc_html_e( 'Default', 'Divi' ); ?></option>
+				<option value="no" <?php selected( 'no', $post_hide_nav ); ?>><?php esc_html_e( 'Off', 'Divi' ); ?></option>
+				<option value="on" <?php selected( 'on', $post_hide_nav ); ?>><?php esc_html_e( 'On', 'Divi' ); ?></option>
+			</select>
+		</p>
+
+	<?php if ( 'post' === $post->post_type ) : ?>
+		<p class="et_pb_page_settings et_pb_single_title" style="display: none;">
+			<label for="et_single_title" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Post Title', 'Divi' ); ?>: </label>
+
+			<select id="et_single_title" name="et_single_title">
+				<option value="on" <?php selected( 'on', $show_title ); ?>><?php esc_html_e( 'Show', 'Divi' ); ?></option>
+				<option value="off" <?php selected( 'off', $show_title ); ?>><?php esc_html_e( 'Hide', 'Divi' ); ?></option>
+			</select>
+		</p>
+
+		<p class="et_divi_quote_settings et_divi_audio_settings et_divi_link_settings et_divi_format_setting et_pb_page_settings">
+			<label for="et_post_use_bg_color" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Use Background Color', 'Divi' ); ?></label>
+			<input name="et_post_use_bg_color" type="checkbox" id="et_post_use_bg_color" <?php checked( $post_use_bg_color ); ?> />
+		</p>
+
+		<p class="et_post_bg_color_setting et_divi_format_setting et_pb_page_settings">
+			<input id="et_post_bg_color" name="et_post_bg_color" class="color-picker-hex" type="text" maxlength="7" placeholder="<?php esc_attr_e( 'Hex Value', 'Divi' ); ?>" value="<?php echo esc_attr( $post_bg_color ); ?>" data-default-color="#ffffff" />
+		</p>
+
+		<p class="et_divi_quote_settings et_divi_audio_settings et_divi_link_settings et_divi_format_setting">
+			<label for="et_post_bg_layout" style="font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Text Color', 'Divi' ); ?>: </label>
+			<select id="et_post_bg_layout" name="et_post_bg_layout">
+		<?php
+			foreach ( $layouts as $layout_name => $layout_title )
+				printf( '<option value="%s"%s>%s</option>',
+					esc_attr( $layout_name ),
+					selected( $layout_name, $post_bg_layout, false ),
+					esc_html( $layout_title )
+				);
+		?>
+			</select>
+		</p>
+	<?php endif;
+
+	if ( 'project' === $post->post_type ) : ?>
+		<p class="et_pb_page_settings et_pb_project_nav" style="display: none;">
+			<label for="et_project_nav" style="display: block; font-weight: bold; margin-bottom: 5px;"><?php esc_html_e( 'Project Navigation', 'Divi' ); ?>: </label>
+
+			<select id="et_project_nav" name="et_project_nav">
+				<option value="off" <?php selected( 'off', $project_nav ); ?>><?php esc_html_e( 'Hide', 'Divi' ); ?></option>
+				<option value="on" <?php selected( 'on', $project_nav ); ?>><?php esc_html_e( 'Show', 'Divi' ); ?></option>
+			</select>
+		</p>
+	<?php endif; ?>
+
+	<?php if ( 'product' === $post->post_type && $is_builder_active ) : ?>
 		<?php
 		$product_page_layouts = et_builder_wc_get_page_layouts( 'Divi' );
 		$product_page_layout  = get_post_meta( $post_id, '_et_pb_product_page_layout', true );
@@ -597,7 +636,9 @@ if ( 'project' === $post->post_type ) : ?>
 				?>
 			</select>
 		</p>
-	<?php endif;
+	<?php endif; ?>
+	</div>
+    <?php
 }
 endif;
 
@@ -3116,7 +3157,7 @@ function et_divi_customizer_theme_settings( $wp_customize ) {
 	) ) );
 
 	$wp_customize->add_setting( 'et_divi[all_buttons_text_color]', array(
-		'default'		=> '#ffffff',
+		'default'		=> '',
 		'type'			=> 'option',
 		'capability'	=> 'edit_theme_options',
 		'transport'		=> 'postMessage',
@@ -3320,7 +3361,7 @@ function et_divi_customizer_theme_settings( $wp_customize ) {
 	) );
 
 	$wp_customize->add_setting( 'et_divi[all_buttons_text_color_hover]', array(
-		'default'		=> '#ffffff',
+		'default'		=> '',
 		'type'			=> 'option',
 		'capability'	=> 'edit_theme_options',
 		'transport'		=> 'postMessage',
@@ -3430,7 +3471,7 @@ function et_load_social_icons() {
         $(document).ready(function() {
           $(document).trigger('et-customizer-preview-load', {
             isCustomPostType: isCustomPostType,
-            selectorWrapper: '.et-db #et-boc'
+            selectorWrapper: <?php echo json_encode( ET_BUILDER_CSS_PREFIX ); ?>
     	  });
         });
       }( jQuery ) );
@@ -3447,6 +3488,17 @@ function et_divi_customize_preview_js() {
 	) );
 }
 add_action( 'customize_preview_init', 'et_divi_customize_preview_js' );
+
+function et_divi_customize_preview_js_context() {
+	// Run in the wp_enqueue_scripts hook as it fires late enough that the main WP query has been resolved.
+	$layouts = et_theme_builder_get_template_layouts();
+
+	wp_localize_script( 'divi-customizer', 'et_theme_builder_customizer_data', array(
+		'hasHeaderLayout' => ! empty( $layouts ) && $layouts[ ET_THEME_BUILDER_HEADER_LAYOUT_POST_TYPE ]['override'],
+		'hasFooterLayout' => ! empty( $layouts ) && $layouts[ ET_THEME_BUILDER_FOOTER_LAYOUT_POST_TYPE ]['override'],
+	) );
+}
+add_action( 'wp_enqueue_scripts', 'et_divi_customize_preview_js_context' );
 
 function et_divi_customize_preview_css() {
 	$theme_version = et_get_theme_version();
@@ -3702,6 +3754,7 @@ function et_divi_add_customizer_css() {
 			$post_id = 'global';
 		}
 
+		$resource_slug  = et_theme_builder_decorate_page_resource_slug( $post_id, $resource_slug );
 		$styles_manager = et_core_page_resource_get( $resource_owner, $resource_slug, $post_id );
 
 		$styles_manager->forced_inline = $forced_inline;
@@ -3808,7 +3861,7 @@ function et_divi_add_customizer_css() {
 		$widget_body_line_height = floatval( et_get_option( 'widget_body_line_height', '1.7' ) );
 
 		$button_text_size = absint( et_get_option( 'all_buttons_font_size', '20' ) );
-		$button_text_color = et_get_option( 'all_buttons_text_color', '#ffffff' );
+		$button_text_color = et_get_option( 'all_buttons_text_color', '' );
 		$button_bg_color = et_get_option( 'all_buttons_bg_color', 'rgba(0,0,0,0)' );
 		$button_border_width = absint( et_get_option( 'all_buttons_border_width', '2' ) );
 		$button_border_color = et_get_option( 'all_buttons_border_color', '#ffffff' );
@@ -3817,7 +3870,7 @@ function et_divi_add_customizer_css() {
 		$button_icon = et_get_option( 'all_buttons_selected_icon', '5' );
 		$button_spacing = intval( et_get_option( 'all_buttons_spacing', '0' ) );
 		$button_icon_color = et_get_option( 'all_buttons_icon_color', '#ffffff' );
-		$button_text_color_hover = et_get_option( 'all_buttons_text_color_hover', '#ffffff' );
+		$button_text_color_hover = et_get_option( 'all_buttons_text_color_hover', '' );
 		$button_bg_color_hover = et_get_option( 'all_buttons_bg_color_hover', 'rgba(255,255,255,0.2)' );
 		$button_border_color_hover = et_get_option( 'all_buttons_border_color_hover', 'rgba(0,0,0,0)' );
 		$button_border_radius_hover = absint( et_get_option( 'all_buttons_border_radius_hover', '3' ) );
@@ -4265,7 +4318,7 @@ function et_divi_add_customizer_css() {
 		<?php if ( 'rgba' === substr( $fixed_primary_nav_bg, 0, 4 ) || ( 'rgba' === substr( $primary_nav_bg, 0, 4 ) && '#ffffff' === $fixed_primary_nav_bg ) ) { ?>
 			.et-fixed-header#main-header { box-shadow: none !important; }
 		<?php } ?>
-		<?php if ( 20 !== $button_text_size || '#ffffff' !== $button_text_color || 'rgba(0,0,0,0)' !== $button_bg_color || 2 !== $button_border_width || '#ffffff' !== $button_border_color || 3 !== $button_border_radius || '' !== $button_text_style || 0 !== $button_spacing ) { ?>
+		<?php if ( 20 !== $button_text_size || ! empty( $button_text_color ) || 'rgba(0,0,0,0)' !== $button_bg_color || 2 !== $button_border_width || '#ffffff' !== $button_border_color || 3 !== $button_border_radius || '' !== $button_text_style || 0 !== $button_spacing ) { ?>
 			<?php echo $css( 'body', '.et_pb_button' ); ?>,
 			<?php echo $css( '.woocommerce', 'a.button.alt' ); ?>,
 			<?php echo $css( '.woocommerce-page', 'a.button.alt' ); ?>,
@@ -4336,7 +4389,7 @@ function et_divi_add_customizer_css() {
 			.woocommerce-page.et_pb_button_helper_class #respond input#submit,
 			<?php echo $css( '.woocommerce.et_pb_button_helper_class #content', 'input.button' ); ?>,
 			<?php echo $css( '.woocommerce-page.et_pb_button_helper_class #content', 'input.button' ); ?> {
-				<?php if ( '#ffffff' !== $button_text_color ) { ?>
+				<?php if ( ! empty( $button_text_color ) ) { ?>
 					color: <?php echo esc_html( $button_text_color ); ?>;
 				<?php } ?>
 			}
@@ -4378,7 +4431,7 @@ function et_divi_add_customizer_css() {
 				<?php } ?>
 			}
 		<?php } ?>
-		<?php if ( '#ffffff' !== $button_text_color_hover || 'rgba(255,255,255,0.2)' !== $button_bg_color_hover || 'rgba(0,0,0,0)' !== $button_border_color_hover || 3 !== $button_border_radius_hover || 0 !== $button_spacing_hover ) { ?>
+		<?php if ( ! empty( $button_text_color_hover ) || 'rgba(255,255,255,0.2)' !== $button_bg_color_hover || 'rgba(0,0,0,0)' !== $button_border_color_hover || 3 !== $button_border_radius_hover || 0 !== $button_spacing_hover ) { ?>
 			<?php echo $css( 'body', '.et_pb_button:hover' ); ?>,
 			<?php echo $css( '.woocommerce', 'a.button.alt:hover' ); ?>,
 			<?php echo $css( '.woocommerce-page', 'a.button.alt:hover' ); ?>,
@@ -4402,7 +4455,7 @@ function et_divi_add_customizer_css() {
 			.woocommerce-page #respond input#submit:hover,
 			<?php echo $css( '.woocommerce #content', 'input.button:hover' ); ?>,
 			<?php echo $css( '.woocommerce-page #content', 'input.button:hover' ); ?> {
-				<?php if ( '#ffffff' !== $button_text_color_hover ) { ?>
+				<?php if ( ! empty( $button_text_color_hover ) ) { ?>
 					 color: <?php echo esc_html( $button_text_color_hover ); ?> !important;
 				<?php } ?>
 				<?php if ( 'rgba(255,255,255,0.2)' !== $button_bg_color_hover ) { ?>
@@ -4620,14 +4673,14 @@ function et_divi_add_customizer_css() {
 				.et_header_style_left .et-fixed-header #et-top-navigation, .et_header_style_split .et-fixed-header #et-top-navigation { padding: <?php echo esc_html( intval( round( $fixed_menu_height / 2 ) ) ); ?>px 0 0 0; }
 				.et_header_style_left .et-fixed-header #et-top-navigation nav > ul > li > a, .et_header_style_split .et-fixed-header #et-top-navigation nav > ul > li > a  { padding-bottom: <?php echo esc_html( round( $fixed_menu_height / 2 ) ); ?>px; }
 				.et_header_style_centered header#main-header.et-fixed-header .logo_container { height: <?php echo esc_html( $fixed_menu_height ); ?>px; }
-				.et_header_style_split .et-fixed-header .centered-inline-logo-wrap { width: <?php echo esc_html( $fixed_menu_height ); ?>px; margin: -<?php echo esc_html( $fixed_menu_height ); ?>px 0;  }
+				.et_header_style_split #main-header.et-fixed-header .centered-inline-logo-wrap { width: <?php echo esc_html( $fixed_menu_height ); ?>px; margin: -<?php echo esc_html( $fixed_menu_height ); ?>px 0;  }
 				.et_header_style_split .et-fixed-header .centered-inline-logo-wrap #logo { max-height: <?php echo esc_html( $fixed_menu_height ); ?>px; }
 				.et_pb_svg_logo.et_header_style_split .et-fixed-header .centered-inline-logo-wrap #logo { height: <?php echo esc_html( $fixed_menu_height ); ?>px; }
 				.et_header_style_slide .et-fixed-header #et-top-navigation, .et_header_style_fullscreen .et-fixed-header #et-top-navigation { padding: <?php echo esc_html( round( ( $fixed_menu_height - 18 ) / 2 ) ); ?>px 0 <?php echo esc_html( round( ( $fixed_menu_height - 18 ) / 2 ) ); ?>px 0 !important; }
 			<?php } ?>
 			<?php if ( 54 !== $logo_height && 'split' === $header_style ) { ?>
-				.et_header_style_split .centered-inline-logo-wrap { width: auto; height: <?php echo esc_html( ( ( intval( $menu_height ) / 100 ) * $logo_height ) + 14 ); ?>px; }
-				.et_header_style_split .et-fixed-header .centered-inline-logo-wrap { width: auto; height: <?php echo esc_html( ( ( intval( $fixed_menu_height ) / 100 ) * $logo_height ) + 14 ); ?>px; }
+				.et_header_style_split #main-header .centered-inline-logo-wrap { width: auto; height: <?php echo esc_html( ( ( intval( $menu_height ) / 100 ) * $logo_height ) + 14 ); ?>px; }
+				.et_header_style_split #main-header.et-fixed-header .centered-inline-logo-wrap { width: auto; height: <?php echo esc_html( ( ( intval( $fixed_menu_height ) / 100 ) * $logo_height ) + 14 ); ?>px; }
 				.et_header_style_split .centered-inline-logo-wrap #logo,
 				.et_header_style_split .et-fixed-header .centered-inline-logo-wrap #logo { height: auto; max-height: 100%; }
 
@@ -6061,9 +6114,14 @@ add_action( 'et_before_content', 'et_do_video_embed_html' );
  * galleries on top of the page
  */
 function et_delete_post_gallery( $content ) {
-    $deleted = false;
+	$deleted = false;
 
 	if ( ( is_single() || is_archive() ) && is_main_query() && has_post_format( 'gallery' ) ) :
+		if ( et_theme_builder_overrides_layout( ET_THEME_BUILDER_BODY_LAYOUT_POST_TYPE ) ) {
+			// Do not remove galleries when TB has taken over.
+			return $content;
+		}
+
 		$regex = get_shortcode_regex();
 		preg_match_all( "/{$regex}/s", $content, $matches );
 
@@ -6078,7 +6136,7 @@ function et_delete_post_gallery( $content ) {
 		$content = apply_filters('et_delete_post_gallery', $content, $deleted);
 	endif;
 
-    return $content;
+	return $content;
 }
 add_filter( 'the_content', 'et_delete_post_gallery' );
 // Include GB galleries in `get_post_gallery`
@@ -6171,12 +6229,112 @@ function et_divi_is_transparent_primary_nav() {
 }
 
 function et_layout_body_class( $classes ) {
+    $has_tb_header     = in_array( 'et-tb-has-header', $classes );
+    $has_tb_footer     = in_array( 'et-tb-has-footer', $classes );
+    $is_blank_page_tpl = is_page_template( 'page-template-blank.php' );
+
 	do_action( 'et_layout_body_class_before', $classes );
 
-	$vertical_nav = et_get_option( 'vertical_nav', false );
-	if ( et_divi_is_transparent_primary_nav() && ( false === $vertical_nav || '' === $vertical_nav ) ) {
-		$classes[] = 'et_transparent_nav';
+	if ( 'on' === get_post_meta( get_the_ID(), '_et_pb_side_nav', true ) && et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+		$classes[] = 'et_pb_side_nav_page';
 	}
+
+	if ( ! $has_tb_header && ! $is_blank_page_tpl ) {
+		$vertical_nav = et_get_option( 'vertical_nav', false );
+		if ( et_divi_is_transparent_primary_nav() && ( false === $vertical_nav || '' === $vertical_nav ) ) {
+			$classes[] = 'et_transparent_nav';
+		}
+
+		if ( true === et_get_option( 'nav_fullwidth', false ) ) {
+			if ( true === et_get_option( 'vertical_nav', false ) ) {
+				$classes[] = 'et_fullwidth_nav_temp';
+			} else {
+				$classes[] = 'et_fullwidth_nav';
+			}
+		}
+
+		if ( true === et_get_option( 'secondary_nav_fullwidth', false ) ) {
+			$classes[] = 'et_fullwidth_secondary_nav';
+		}
+
+		if ( true === et_get_option( 'vertical_nav', false ) ) {
+			$classes[] = 'et_vertical_nav';
+			if ( 'right' === et_get_option( 'vertical_nav_orientation', 'left' ) ) {
+				$classes[] = 'et_vertical_right';
+			}
+		} else if ( 'on' === et_get_option( 'divi_fixed_nav', 'on' ) ) {
+			$classes[] = 'et_fixed_nav';
+		} else if ( 'on' !== et_get_option( 'divi_fixed_nav', 'on' ) ) {
+			$classes[] = 'et_non_fixed_nav';
+		}
+
+		if ( true === et_get_option( 'vertical_nav', false ) && 'on' === et_get_option( 'divi_fixed_nav', 'on' ) ) {
+			$classes[] = 'et_vertical_fixed';
+		}
+
+		if ( true === et_get_option( 'hide_nav', false ) && ( ! is_singular() || is_singular() && 'no' !== get_post_meta( get_the_ID(), '_et_pb_post_hide_nav', true ) ) ) {
+			$classes[] = 'et_hide_nav';
+		} else {
+			$classes[] = 'et_show_nav';
+		}
+
+		if ( true === et_get_option( 'hide_primary_logo', false ) ) {
+			$classes[] = 'et_hide_primary_logo';
+		}
+
+		if ( true === et_get_option( 'hide_fixed_logo', false ) ) {
+			$classes[] = 'et_hide_fixed_logo';
+		}
+
+		if ( true === et_get_option( 'hide_mobile_logo', false ) ) {
+			$classes[] = 'et_hide_mobile_logo';
+		}
+
+		$et_secondary_nav_items = et_divi_get_top_nav_items();
+
+		if ( $et_secondary_nav_items->top_info_defined && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
+			$classes[] = 'et_secondary_nav_enabled';
+		}
+
+		if ( $et_secondary_nav_items->two_info_panels && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
+			$classes[] = 'et_secondary_nav_two_panels';
+		}
+
+		if ( $et_secondary_nav_items->secondary_nav && ! ( $et_secondary_nav_items->contact_info_defined || $et_secondary_nav_items->show_header_social_icons ) && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
+			$classes[] = 'et_secondary_nav_only_menu';
+		}
+
+		if ( is_singular() && et_builder_enabled_for_post( get_the_ID() ) && 'on' == get_post_meta( get_the_ID(), '_et_pb_post_hide_nav', true ) ) {
+			$classes[] = 'et_hide_nav';
+		}
+
+		$primary_dropdown_animation = et_get_option( 'primary_nav_dropdown_animation', 'fade' );
+		$classes[] = esc_attr( "et_primary_nav_dropdown_animation_{$primary_dropdown_animation}" );
+
+		$secondary_dropdown_animation = et_get_option( 'secondary_nav_dropdown_animation', 'fade' );
+		$classes[] = esc_attr( "et_secondary_nav_dropdown_animation_{$secondary_dropdown_animation}" );
+
+		$header_style = et_get_option( 'header_style', 'left' );
+		$classes[] = esc_attr( "et_header_style_{$header_style}" );
+
+		if ( 'slide' === $header_style || 'fullscreen' === $header_style ) {
+			$classes[] = esc_attr( "et_header_style_left" );
+			if ( 'fullscreen' === $header_style && ! et_get_option( 'slide_nav_show_top_bar', true ) ) {
+				// additional class if top bar disabled in Fullscreen menu
+				$classes[] = esc_attr( "et_pb_no_top_bar_fullscreen" );
+			}
+		}
+
+		$logo = et_get_option( 'divi_logo', '' );
+		if ( '.svg' === substr( $logo, -4, 4 ) ) {
+			$classes[] = 'et_pb_svg_logo';
+		}
+    }
+
+	if ( ! $has_tb_footer && ! $is_blank_page_tpl ) {
+		$footer_columns = et_get_option( 'footer_columns', '4' );
+		$classes[] = esc_attr( "et_pb_footer_columns{$footer_columns}" );
+    }
 
 	// home-posts class is used by customizer > blog to work. It modifies post title and meta
 	// of WP default layout (home, archive, single), but should not modify post title and meta of blog module (page as home)
@@ -6184,79 +6342,12 @@ function et_layout_body_class( $classes ) {
 		$classes[] = 'home-posts';
 	}
 
-	if ( true === et_get_option( 'nav_fullwidth', false ) ) {
-		if ( true === et_get_option( 'vertical_nav', false ) ) {
-			$classes[] = 'et_fullwidth_nav_temp';
-		} else {
-			$classes[] = 'et_fullwidth_nav';
-		}
-	}
-
-	if ( true === et_get_option( 'secondary_nav_fullwidth', false ) ) {
-		$classes[] = 'et_fullwidth_secondary_nav';
-	}
-
-	if ( true === et_get_option( 'vertical_nav', false ) ) {
-		$classes[] = 'et_vertical_nav';
-		if ( 'right' === et_get_option( 'vertical_nav_orientation', 'left' ) ) {
-			$classes[] = 'et_vertical_right';
-		}
-	} else if ( 'on' === et_get_option( 'divi_fixed_nav', 'on' ) ) {
-		$classes[] = 'et_fixed_nav';
-	} else if ( 'on' !== et_get_option( 'divi_fixed_nav', 'on' ) ) {
-		$classes[] = 'et_non_fixed_nav';
-	}
-
-	if ( true === et_get_option( 'vertical_nav', false ) && 'on' === et_get_option( 'divi_fixed_nav', 'on' ) ) {
-		$classes[] = 'et_vertical_fixed';
-	}
-
 	if ( true === et_get_option( 'boxed_layout', false ) ) {
 		$classes[] = 'et_boxed_layout';
 	}
 
-	if ( true === et_get_option( 'hide_nav', false ) && ( ! is_singular() || is_singular() && 'no' !== get_post_meta( get_the_ID(), '_et_pb_post_hide_nav', true ) ) ) {
-		$classes[] = 'et_hide_nav';
-	} else {
-		$classes[] = 'et_show_nav';
-	}
-
-	if ( true === et_get_option( 'hide_primary_logo', false ) ) {
-		$classes[] = 'et_hide_primary_logo';
-	}
-
-	if ( true === et_get_option( 'hide_fixed_logo', false ) ) {
-		$classes[] = 'et_hide_fixed_logo';
-	}
-
-	if ( true === et_get_option( 'hide_mobile_logo', false ) ) {
-		$classes[] = 'et_hide_mobile_logo';
-	}
-
 	if ( false !== et_get_option( 'cover_background', true ) ) {
 		$classes[] = 'et_cover_background';
-	}
-
-	$et_secondary_nav_items = et_divi_get_top_nav_items();
-
-	if ( $et_secondary_nav_items->top_info_defined && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
-		$classes[] = 'et_secondary_nav_enabled';
-	}
-
-	if ( $et_secondary_nav_items->two_info_panels && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
-		$classes[] = 'et_secondary_nav_two_panels';
-	}
-
-	if ( $et_secondary_nav_items->secondary_nav && ! ( $et_secondary_nav_items->contact_info_defined || $et_secondary_nav_items->show_header_social_icons ) && 'slide' !== et_get_option( 'header_style', 'left' ) && 'fullscreen' !== et_get_option( 'header_style', 'left' ) ) {
-		$classes[] = 'et_secondary_nav_only_menu';
-	}
-
-	if ( 'on' === get_post_meta( get_the_ID(), '_et_pb_side_nav', true ) && et_pb_is_pagebuilder_used( get_the_ID() ) ) {
-		$classes[] = 'et_pb_side_nav_page';
-	}
-
-	if ( is_singular() && et_builder_enabled_for_post( get_the_ID() ) && 'on' == get_post_meta( get_the_ID(), '_et_pb_post_hide_nav', true ) ) {
-		$classes[] = 'et_hide_nav';
 	}
 
 	if ( ! et_get_option( 'use_sidebar_width', false ) ) {
@@ -6277,33 +6368,8 @@ function et_layout_body_class( $classes ) {
 	$gutter_width = ! empty( $page_custom_gutter ) && is_singular() ? $page_custom_gutter :  (string) et_get_option( 'gutter_width', '3' );
 	$classes[] = esc_attr( "et_pb_gutters{$gutter_width}" );
 
-	$primary_dropdown_animation = et_get_option( 'primary_nav_dropdown_animation', 'fade' );
-	$classes[] = esc_attr( "et_primary_nav_dropdown_animation_{$primary_dropdown_animation}" );
-
-	$secondary_dropdown_animation = et_get_option( 'secondary_nav_dropdown_animation', 'fade' );
-	$classes[] = esc_attr( "et_secondary_nav_dropdown_animation_{$secondary_dropdown_animation}" );
-
-	$footer_columns = et_get_option( 'footer_columns', '4' );
-	$classes[] = esc_attr( "et_pb_footer_columns{$footer_columns}" );
-
-	$header_style = et_get_option( 'header_style', 'left' );
-	$classes[] = esc_attr( "et_header_style_{$header_style}" );
-
-	if ( 'slide' === $header_style || 'fullscreen' === $header_style ) {
-		$classes[] = esc_attr( "et_header_style_left" );
-		if ( 'fullscreen' === $header_style && ! et_get_option( 'slide_nav_show_top_bar', true ) ) {
-			// additional class if top bar disabled in Fullscreen menu
-			$classes[] = esc_attr( "et_pb_no_top_bar_fullscreen" );
-		}
-	}
-
-	$logo = et_get_option( 'divi_logo', '' );
-	if ( '.svg' === substr( $logo, -4, 4 ) ) {
-		$classes[] = 'et_pb_svg_logo';
-	}
-
 	// Add the page builder class.
-	if ( et_pb_is_pagebuilder_used( get_the_ID() ) ) {
+	if ( et_pb_is_pagebuilder_used( get_the_ID() ) && ! ET_GB_Block_Layout::is_layout_block_preview() ) {
 		$classes[] = 'et_pb_pagebuilder_layout';
 	}
 
@@ -6415,24 +6481,34 @@ function et_divi_activate_features(){
 add_action( 'init', 'et_divi_activate_features' );
 
 require_once( get_template_directory() . '/et-pagebuilder/et-pagebuilder.php' );
+require_once get_template_directory() . '/includes/theme-builder.php';
+
+require_once( get_template_directory() . '/includes/block-editor-integration.php' );
 
 /**
  * Custom body classes for sidebar location in different places
  * @return array
  */
 function et_divi_sidebar_class( $classes ) {
+    if ( in_array( 'et-tb-has-body', $classes ) ) {
+        // TB has taken over the body area so there is no sidebar.
+        return $classes;
+    }
+
 	$page_layout           = '';
-	$default_sidebar_class = et_get_option( 'divi_sidebar' );
-	$post_id = get_queried_object_id();
-	$is_builder_active = 'on' === get_post_meta( $post_id, '_et_pb_use_builder', true ) || ( function_exists( 'et_fb_is_enabled' ) && et_fb_is_enabled() );
+	$is_product            = function_exists( 'is_product' ) && is_product();
+	$default_sidebar_class = $is_product ? et_get_option( 'et_pb_woocommerce_product_layout' ) : et_get_option( 'divi_sidebar' );
+	$post_id               = get_queried_object_id();
+	$is_builder_active     = 'on' === get_post_meta( $post_id, '_et_pb_use_builder', true ) || et_core_is_fb_enabled();
+	$is_blank_page_tpl     = is_page_template( 'page-template-blank.php' );
 
 	if ( ! $default_sidebar_class ) {
 		$default_sidebar_class = is_rtl() ? 'et_left_sidebar' : 'et_right_sidebar';
 	}
 
 	// Set Woo shop and taxonomies layout.
-	if ( class_exists( 'woocommerce' ) && ( is_woocommerce() && ( is_shop() || is_tax() || is_product() ) ) ) {
-		if ( is_product() ) {
+	if ( class_exists( 'woocommerce' ) && ( is_woocommerce() && ( is_shop() || is_tax() || $is_product ) ) ) {
+		if ( $is_product ) {
 			$saved_page_layout = get_post_meta( $post_id, '_et_pb_page_layout', true );
 			$page_layout = ! $saved_page_layout || ( 'et_full_width_page' === $saved_page_layout && ! $is_builder_active ) ? $default_sidebar_class : $saved_page_layout;
 		} else {
@@ -6441,7 +6517,7 @@ function et_divi_sidebar_class( $classes ) {
 	} elseif ( ! is_singular() || ( ! ( $page_layout = get_post_meta( $post_id, '_et_pb_page_layout', true ) ) && ! $is_builder_active ) ) { // check for the falsy value not for boolean `false`
 		// Set post meta layout which will work for all third party plugins.
 		$page_layout = $default_sidebar_class;
-	} elseif ( $is_builder_active && ! $page_layout ) {
+	} elseif ( $is_builder_active && ($is_blank_page_tpl || ! $page_layout || is_page() ) ) {
 		$page_layout = 'et_no_sidebar';
 	}
 
@@ -6615,6 +6691,9 @@ function et_add_divi_menu() {
 
 		add_submenu_page( 'et_divi_options', esc_html__( 'Theme Options', 'Divi' ), esc_html__( 'Theme Options', 'Divi' ), 'manage_options', 'et_divi_options' );
 	}
+
+	et_theme_builder_add_admin_page( 'et_divi_options' );
+
 	// Add Theme Customizer menu only if it's enabled for current user
 	if ( et_pb_is_allowed( 'theme_customizer' ) ) {
 		add_submenu_page( 'et_divi_options', esc_html__( 'Theme Customizer', 'Divi' ), esc_html__( 'Theme Customizer', 'Divi' ), 'manage_options', 'customize.php?et_customizer_option_set=theme' );
@@ -6958,12 +7037,44 @@ function et_divi_truncate_post_use_custom_content( $custom, $content, $post ) {
 	$cached = get_post_meta( $post->ID, '_et_pb_truncate_post', true );
 
 	if ( $cached ) {
+        $cached_date = get_post_meta( $post->ID, '_et_pb_truncate_post_date', true );
+		$cached_date = $cached_date ? $cached_date : get_post_field( 'post_modified', $post->ID );
+        $global_modules = array();
+
+        $shortcodes = array();
+        preg_match_all( '/'. get_shortcode_regex() .'/s', $content, $shortcodes );
+
+        if ( is_array( $shortcodes ) && isset( $shortcodes[3] ) ) {
+            foreach ( $shortcodes[3] as $raw_attributes ) {
+                $attributes = shortcode_parse_atts( $raw_attributes );
+                $attributes = is_array( $attributes ) ? $attributes : array();
+                $global_id = (int) et_()->array_get( $attributes, 'global_module', 0 );
+
+                if ( $global_id > 0 ) {
+                    $global_modules[] = $global_id;
+                }
+            }
+        }
+
+        foreach ( $global_modules as $module_post_id ) {
+            // Dates are using the Y-m-d H:i:s format so we can compare them as strings for simplicity.
+            if ( strcmp( get_post_field( 'post_modified', $module_post_id ), $cached_date ) > 0 ) {
+                // A global module used in the post has been updated more recently than
+                // the post's cached excerpt so we need to invalidate the cache.
+                $cached = '';
+                break;
+            }
+        }
+	}
+
+	if ( $cached ) {
 		return $cached;
 	}
 
 	$custom = apply_filters( 'the_content', $content );
 	// Save the result because expensive to compute.
 	update_post_meta( $post->ID, '_et_pb_truncate_post', $custom );
+	update_post_meta( $post->ID, '_et_pb_truncate_post_date', date( 'Y-m-d H:i:s' ) );
 
 	return $custom;
 }
@@ -7021,6 +7132,7 @@ function et_divi_save_post( $post_id ) {
 	// Unset cache
 	update_post_meta( $post_id, '_et_pb_first_image', false );
 	update_post_meta( $post_id, '_et_pb_truncate_post', false );
+	update_post_meta( $post_id, '_et_pb_truncate_post_date', '' );
 }
 endif;
 add_action( 'et_save_post', 'et_divi_save_post', 1 );
@@ -7096,3 +7208,29 @@ function et_divi_get_content_width() {
 
 	return ( 1080 === $value && et_divi_is_boxed_layout() ) ? 1200 : $value;
 }
+
+/**
+ * Disable Theme Builder header and footer layouts, if any, on the blank page template.
+ *
+ * @since ??
+ *
+ * @param array $layouts
+ *
+ * @return array
+ */
+function et_divi_disable_theme_builder_header_footer_on_blank_template( $layouts ) {
+	if ( ! is_page_template('page-template-blank.php') || empty( $layouts ) ) {
+		return $layouts;
+	}
+
+	$layouts[ ET_THEME_BUILDER_HEADER_LAYOUT_POST_TYPE ]['id']       = 0;
+	$layouts[ ET_THEME_BUILDER_HEADER_LAYOUT_POST_TYPE ]['enabled']  = false;
+	$layouts[ ET_THEME_BUILDER_HEADER_LAYOUT_POST_TYPE ]['override'] = false;
+
+	$layouts[ ET_THEME_BUILDER_FOOTER_LAYOUT_POST_TYPE ]['id']       = 0;
+	$layouts[ ET_THEME_BUILDER_FOOTER_LAYOUT_POST_TYPE ]['enabled']  = false;
+	$layouts[ ET_THEME_BUILDER_FOOTER_LAYOUT_POST_TYPE ]['override'] = false;
+
+	return $layouts;
+}
+add_filter( 'et_theme_builder_template_layouts', 'et_divi_disable_theme_builder_header_footer_on_blank_template' );

@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -44,6 +44,7 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 		);
 
 		// Modify advanced field settings.
+		$this->advanced_fields['fonts']['header']['label']                            = esc_html__( 'Review Count', 'et_builder' );
 		$this->advanced_fields['fonts']['header']['header_level']['default']          = 'h2';
 		$this->advanced_fields['fonts']['header']['header_level']['computed_affects'] = array(
 			'__reviews',
@@ -53,6 +54,12 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 		);
 		$this->advanced_fields['fonts']['header']['line_height']                      = array(
 			'default' => '1em',
+		);
+		$this->advanced_fields['fonts']['title']['font_size']                         = array(
+			'default' => '14px',
+		);
+		$this->advanced_fields['fonts']['title']['line_height']                       = array(
+			'default' => '1.7em',
 		);
 		$this->advanced_fields['fonts']['header']['css']['main']                      = "{$this->main_css_element} h1.woocommerce-Reviews-title, {$this->main_css_element} h2.woocommerce-Reviews-title, {$this->main_css_element} h3.woocommerce-Reviews-title, {$this->main_css_element} h4.woocommerce-Reviews-title, {$this->main_css_element} h5.woocommerce-Reviews-title, {$this->main_css_element} h6.woocommerce-Reviews-title";
 		$this->advanced_fields['fonts']['meta']['css']['main']                        = "{$this->main_css_element} #reviews #comments ol.commentlist li .comment-text p.meta, %%order_class%% .comment-form-rating label";
@@ -85,6 +92,9 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 		$this->advanced_fields['form_field']['form_field']['font_field']['font_size'] = array(
 			'default' => '18px',
 		);
+
+		// Disable form title heading level because it uses span tag.
+		unset( $this->advanced_fields['fonts']['title']['header_level'] );
 
 		$this->custom_css_fields = array(
 			'main_header' => array(
@@ -165,7 +175,7 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 				'computed_affects' => array(
 					'__reviews',
 				),
-				'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+				'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 			)
 		);
 		$fields['product_filter'] = ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
@@ -236,7 +246,7 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 		$args = wp_parse_args( $args, $defaults );
 
 		// Get correct product ID when current request is computed callback request.
-		if ( ET_Builder_Element::get_current_post_id() ) {
+		if ( ET_Builder_Element::get_current_post_id() && ! et_builder_tb_enabled() ) {
 			$maybe_product_id = ET_Builder_Element::get_current_post_id();
 		}
 
@@ -248,13 +258,27 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 			$maybe_product_id = $args['product'];
 		}
 
-		$product = ET_Builder_Module_Helper_Woocommerce_Modules::get_product( $maybe_product_id );
+		$is_tb = et_builder_tb_enabled();
+
+		if ( $is_tb ) {
+			global $product;
+
+			et_theme_builder_wc_set_global_objects();
+		} else {
+			$product = ET_Builder_Module_Helper_Woocommerce_Modules::get_product( $maybe_product_id );
+		}
 
 		if ( ! ( $product instanceof WC_Product ) ) {
 			return '';
 		}
 
-		return self::get_reviews_markup( $product, $args['header_level'], true );
+		$reviews_markup = self::get_reviews_markup( $product, $args['header_level'], true );
+
+		if ( $is_tb ) {
+			et_theme_builder_wc_reset_global_objects();
+		}
+
+		return $reviews_markup;
 	}
 
 	/**
@@ -407,8 +431,7 @@ class ET_Builder_Module_Woocommerce_Reviews extends ET_Builder_Module_Comments {
 	 *
 	 * @since 3.29
 	 */
-	public function after_comments_content() {
-	}
+	public function after_comments_content() { /* intentionally empty*/ }
 
 	/**
 	 * {@inheritdoc}

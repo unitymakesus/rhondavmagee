@@ -52,7 +52,7 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 			),
 			'margin_padding' => array(
 				'css'            => array(
-					'main'      => "{$this->main_css_element} input.et_pb_s",
+					'padding'   => "{$this->main_css_element} input.et_pb_s",
 					'important' => 'all',
 				),
 				'custom_padding' => array(
@@ -139,6 +139,9 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 						),
 					),
 				),
+			),
+			'overflow'=>array(
+				'default' =>'hidden',
 			),
 		);
 
@@ -284,13 +287,6 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 		$video_background                = $this->video_background();
 		$parallax_image_background       = $this->get_parallax_image_background();
 
-		$background_layout               = $this->props['background_layout'];
-		$background_layout_hover         = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values        = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet        = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone         = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 		$this->content = et_builder_replace_code_content_entities( $this->content );
 
 		// Button Color.
@@ -349,68 +345,21 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 			) );
 		}
 
-		$custom_margin = explode('|', $this->props['custom_margin']);
-		$has_custom_margin = isset( $custom_margin[0], $custom_margin[1], $custom_margin[2],  $custom_margin[3] );
-		$custom_margin_units = array();
-
-		if ( $has_custom_margin ) {
-			$button_top    = $custom_margin[0];
-			$button_bottom = $custom_margin[2];
-			$custom_margin_left_unit = et_pb_get_value_unit( $custom_margin[3] );
-			$button_right  = ( 0 - floatval( $custom_margin[3] ) ) . $custom_margin_left_unit;
-
-			$custom_margin_units = array(
-				et_pb_get_value_unit( $custom_margin[0] ),
-				et_pb_get_value_unit( $custom_margin[1] ),
-				et_pb_get_value_unit( $custom_margin[2] ),
-				$custom_margin_left_unit,
-			);
-
-			ET_Builder_Element::set_style( $render_slug, array(
-				'selector'    => '%%order_class%%.et_pb_search input.et_pb_searchsubmit',
-				'declaration' => sprintf(
-					'min-height: 0 !important; top: %1$s; right: %2$s; bottom: %3$s;',
-					esc_html( $button_top ),
-					esc_html( $button_right ),
-					esc_html( $button_bottom )
-				),
-			) );
-		}
-
 		// Module classnames
 		$this->add_classname( array(
-			"et_pb_bg_layout_{$background_layout}",
-			$this->get_text_orientation_classname(true),
+			$this->get_text_orientation_classname( true ),
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( 'on' !== $show_button ) {
 			$this->add_classname( 'et_pb_hide_search_button' );
 		}
 
-		if ( ! empty( $custom_margin_units ) && in_array( '%', $custom_margin_units ) ) {
-			$this->add_classname( 'et_pb_search_percentage_custom_margin' );
-		}
-
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		$multi_view_show_button_data_attr = $multi_view->render_attrs( array(
 			'classes' => array(
@@ -421,7 +370,7 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 		) );
 
 		$output = sprintf(
-			'<div%3$s class="%2$s"%12$s%13$s%14$s>
+			'<div%3$s class="%2$s"%12$s%13$s>
 				%11$s
 				%10$s
 				<form role="search" method="get" class="et_pb_searchform" action="%1$s">
@@ -448,7 +397,6 @@ class ET_Builder_Module_Search extends ET_Builder_Module {
 			$video_background, // #10
 			$parallax_image_background,
 			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover ),
 			$multi_view_show_button_data_attr
 		);
 

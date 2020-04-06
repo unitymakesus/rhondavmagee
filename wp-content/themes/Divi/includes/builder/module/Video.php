@@ -68,6 +68,9 @@ class ET_Builder_Module_Video extends ET_Builder_Module {
 			'text'                  => false,
 			'button'                => false,
 			'link_options'          => false,
+			'position_fields'       => array(
+				'default' => 'relative',
+			),
 		);
 
 		$this->help_videos = array(
@@ -306,8 +309,8 @@ class ET_Builder_Module_Video extends ET_Builder_Module {
 
 		foreach ( $multi_view->get_modes() as $mode ) {
 			$video_srcs[ $mode ] = self::get_video( array(
-				'src'      => $multi_view->get_value( 'src', $mode ),
-				'src_webm' => $multi_view->get_value( 'src_webm', $mode ),
+				'src'      => $multi_view->get_inherit_value( 'src', $mode ),
+				'src_webm' => $multi_view->get_inherit_value( 'src_webm', $mode ),
 			) );
 		}
 
@@ -396,6 +399,9 @@ class ET_Builder_Module_Video extends ET_Builder_Module {
 			'styles' => array(
 				'background-image' => 'url({{image_src}})',
 			),
+			'visibility' => array(
+				'image_src' => '__not_empty'
+			),
 			'required' => 'image_src',
 		) );
 
@@ -421,7 +427,7 @@ class ET_Builder_Module_Video extends ET_Builder_Module {
 	 * Filter multi view value.
 	 *
 	 * @since 3.27.1
-	 * 
+	 *
 	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
 	 *
 	 * @param mixed $raw_value Props raw value.

@@ -689,7 +689,7 @@ class ET_Builder_Module_Helper_ResponsiveOptions {
 	 * @return bool
 	 */
 	public function is_enabled( $setting, $props ) {
-		$value = et_builder_module_prop( $this->get_last_edited_field( $setting ), $props, '' );
+		$value = et_builder_module_prop( $this->get_last_edited_field( $this->get_field_base_name( $setting ) ), $props, '' );
 
 		return et_pb_get_responsive_status( $value );
 	}
@@ -772,6 +772,47 @@ class ET_Builder_Module_Helper_ResponsiveOptions {
 		$mode  = et_()->array_get( explode( '|', $value ), '[1]' );
 
 		return $this->validate_mode( $mode ) ? $mode : $this->get_default_mode();
+	}
+
+	/**
+	 * Get breakpoint minimum widths
+	 *
+	 * @since 4.3.2
+	 *
+	 * @return array
+	 */
+	public function get_breakpoint_min_widths() {
+		return array(
+			'desktop' => 980,
+			'tablet'  => 768,
+			'phone'   => 0,
+		);
+	}
+
+	/**
+	 * Get breakpoint based on device name.
+	 *
+	 * @since 4.0
+	 *
+	 * @param  string $device
+	 *
+	 * @return string
+	 */
+	public function get_breakpoint_by_device( $device = 'desktop' ) {
+		switch ( $device ) {
+			case 'desktop_only' :
+				return 'min_width_981';
+			case 'tablet' :
+				return 'max_width_980';
+			case 'tablet_only' :
+				return '768_980';
+			case 'desktop_tablet_only' :
+				return 'min_width_768';
+			case 'phone' :
+				return 'max_width_767';
+			default :
+				return 'general';
+		}
 	}
 
 	/**
@@ -1426,10 +1467,4 @@ class ET_Builder_Module_Helper_ResponsiveOptions {
 
 }
 
-/**
- * @return ET_Builder_Module_Helper_ResponsiveOptions
- */
-function et_pb_responsive_options() {
-	return ET_Builder_Module_Helper_ResponsiveOptions::instance();
-}
 

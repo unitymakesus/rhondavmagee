@@ -61,6 +61,15 @@ class ET_Builder_Module_Woocommerce_Rating extends ET_Builder_Module {
 					'hide_font'        => true,
 					'hide_line_height' => true,
 					'hide_text_shadow' => true,
+					'text_align'         => array(
+						'label' => esc_html__( 'Star Rating Alignment', 'et_builder' ),
+					),
+					'font_size'          => array(
+						'label' => esc_html__( 'Star Rating Size', 'et_builder' ),
+					),
+					'text_color'         => array(
+						'label' => esc_html__( 'Star Rating Color', 'et_builder' ),
+					),
 					'toggle_slug'      => 'star',
 				),
 				'body'   => array(
@@ -131,7 +140,7 @@ class ET_Builder_Module_Woocommerce_Rating extends ET_Builder_Module {
 			'product'           => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__rating',
 					),

@@ -238,7 +238,9 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 					'main' => '%%order_class%% .et_pb_testimonial_portrait',
 				),
 			),
-			'button'                => false,
+			'position_fields'       => array(
+				'default' => 'relative',
+			),
 		);
 
 		$this->custom_css_fields = array(
@@ -500,13 +502,6 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 		$icon_font_size_hover              = $this->get_hover_value( 'icon_font_size' );
 		$icon_font_size_values             = et_pb_responsive_options()->get_property_values( $this->props, 'icon_font_size' );
 
-		$background_layout                 = $this->props['background_layout'];
-		$background_layout_hover           = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled   = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values          = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet          = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone           = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 		// Potrait Width.
 		et_pb_responsive_options()->generate_responsive_css( $portrait_width_values, '%%order_class%% .et_pb_testimonial_portrait', 'width', $render_slug, ' !important;' );
 
@@ -634,7 +629,6 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 			'attrs'    => array(
 				'class' => 'et_pb_testimonial_author',
 			),
-			'required' => false,
 		) );
 
 		// Images: Add CSS Filters and Mix Blend Mode rules (if set)
@@ -649,17 +643,12 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 		// Module classnames
 		$this->add_classname( array(
 			'clearfix',
-			"et_pb_bg_layout_{$background_layout}",
 			$this->get_text_orientation_classname(),
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( ! $multi_view->has_value( 'quote_icon', 'on', 'desktop' ) ) {
 			$this->add_classname( 'et_pb_icon_off' );
@@ -673,19 +662,8 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 			$this->add_classname( 'et_pb_testimonial_no_bg' );
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		if ( 'on' === $use_background_color ) {
 			ET_Builder_Element::set_style( $render_slug, array(
@@ -707,9 +685,15 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 			}
 		}
 
-		$multi_view_content_data_attr = $multi_view->render_attrs( array(
-			'content' => '{{content}}',
-		) );
+		$multi_view_testimonial_content = $multi_view->render_element(
+			array(
+				'tag'     => 'div',
+				'content' => '{{content}}',
+				'attrs'   => array(
+					'class' => 'et_pb_testimonial_content',
+				),
+			)
+		);
 
 		$multi_view_icon_off_data_attr = $multi_view->render_attrs( array(
 			'classes' => array(
@@ -723,19 +707,17 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 		) );
 
 		$output = sprintf(
-			'<div%3$s class="%4$s"%10$s%11$s%12$s>
+			'<div%3$s class="%4$s"%10$s%11$s>
 				%9$s
 				%8$s
 				%7$s
 				<div class="et_pb_testimonial_description">
-					<div class="et_pb_testimonial_description_inner"%13$s>
-					%1$s
+					<div class="et_pb_testimonial_description_inner">%1$s</div> <!-- .et_pb_testimonial_description_inner -->
 					%2$s
 					<p class="et_pb_testimonial_meta">%5$s</p>
-					</div> <!-- .et_pb_testimonial_description_inner -->
 				</div> <!-- .et_pb_testimonial_description -->
 			</div> <!-- .et_pb_testimonial -->',
-			$this->content,
+			$multi_view_testimonial_content,
 			et_core_esc_previously( $author ),
 			$this->module_id(),
 			$this->module_classname( $render_slug ),
@@ -745,9 +727,7 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 			$video_background,
 			$parallax_image_background,
 			et_core_esc_previously( $data_background_layout ), // #10
-			et_core_esc_previously( $data_background_layout_hover ),
-			et_core_esc_previously( $multi_view_icon_off_data_attr ),
-			et_core_esc_previously( $multi_view_content_data_attr )
+			et_core_esc_previously( $multi_view_icon_off_data_attr )
 		);
 
 		return $output;
@@ -757,7 +737,7 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 	 * Filter multi view value.
 	 *
 	 * @since 3.27.1
-	 * 
+	 *
 	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
 	 *
 	 * @param mixed $raw_value Props raw value.
@@ -775,37 +755,41 @@ class ET_Builder_Module_Testimonial extends ET_Builder_Module {
 	 * @return mixed
 	 */
 	public function multi_view_filter_value( $raw_value, $args, $multi_view ) {
-		$name               = isset( $args['name'] ) ? $args['name'] : '';
-		$mode               = isset( $args['mode'] ) ? $args['mode'] : '';
+		$context            = et_()->array_get( $args, 'context', '' );
+		$name               = et_()->array_get( $args, 'name', '' );
+		$mode               = et_()->array_get( $args, 'mode', '' );
 		$url                = $this->props['url'];
-		$url_new_window     = $this->props['url_new_window'];
-		$target             = 'on' === $url_new_window ? ' target="_blank"' : '';
+		$link_target        = 'on' === $this->props['url_new_window'] ? 'target="_blank"' : '';
 		$fields_need_escape = array(
 			'author',
 			'job_title',
 			'company_name',
 		);
 
-		if ( ! $raw_value || ! $url ) {
+		if ( ! $raw_value ) {
 			return $raw_value;
 		}
 
-		if ( in_array( $name,  $fields_need_escape, true ) ) {
+		if ( $raw_value && 'content' === $context && in_array( $name, $fields_need_escape, true ) ) {
 			$raw_value = $this->_esc_attr( $multi_view->get_name_by_mode( $name, $mode ) );
-		}
 
-		if ( 'author' === $name && $multi_view->has_value( 'company_name', '__empty', $mode ) ) {
-			$raw_value = sprintf('<a href="%2$s" target="%3$s">%1$s</a>',
-				$raw_value,
-				esc_url( $url ),
-				esc_attr( $target )
-			);
-		} else if ( 'company_name' === $name ) {
-			$raw_value = sprintf('<a href="%2$s" target="%3$s">%1$s</a>',
-				$raw_value,
-				esc_url( $url ),
-				esc_attr( $target )
-			);
+			if ( $url && $raw_value ) {
+				if ( 'author' === $name && ! $this->_esc_attr( $multi_view->get_name_by_mode( 'company_name', $mode ) ) ) {
+					$raw_value = sprintf(
+						'<a href="%2$s" %3$s>%1$s</a>',
+						$raw_value,
+						esc_url( $url ),
+						et_core_intentionally_unescaped( $link_target, 'fixed_string' )
+					);
+				} elseif ( 'company_name' === $name ) {
+					$raw_value = sprintf(
+						'<a href="%2$s" %3$s>%1$s</a>',
+						$raw_value,
+						esc_url( $url ),
+						et_core_intentionally_unescaped( $link_target, 'fixed_string' )
+					);
+				}
+			}
 		}
 
 		return $raw_value;

@@ -74,6 +74,16 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 			'max_width'             => false,
 			'height'                => false,
 			'link_options'          => false,
+			'position_fields'       => array(
+				'css' => array(
+					'main'=> "{$this->main_css_element}_wrapper",
+				),
+			),
+			'transform'             => array(
+				'css' => array(
+					'main' => "{$this->main_css_element}_wrapper",
+				),
+			),
 		);
 
 		$this->help_videos = array(
@@ -134,7 +144,7 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 
 	/**
 	 * Get button alignment.
-	 * 
+	 *
 	 * @since 3.23 Add responsive support by adding device parameter.
 	 *
 	 * @param  string $device Current device name.
@@ -164,13 +174,6 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 		$button_alignment_tablet         = $is_button_aligment_responsive ? $this->get_button_alignment( 'tablet' ) : '';
 		$button_alignment_phone          = $is_button_aligment_responsive ? $this->get_button_alignment( 'phone' ) : '';
 
-		$background_layout               = $this->props['background_layout'];
-		$background_layout_hover         = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values        = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet        = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone         = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 		$custom_icon_values              = et_pb_responsive_options()->get_property_values( $this->props, 'button_icon' );
 		$custom_icon                     = isset( $custom_icon_values['desktop'] ) ? $custom_icon_values['desktop'] : '';
 		$custom_icon_tablet              = isset( $custom_icon_values['tablet'] ) ? $custom_icon_values['tablet'] : '';
@@ -199,28 +202,14 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 			return '';
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
+
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		// Module classnames
-		$this->add_classname( "et_pb_bg_layout_{$background_layout}" );
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
-
 		$this->remove_classname( 'et_pb_module' );
 
 		// Render Button
@@ -240,19 +229,21 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 			'multi_view_data'     => $multi_view->render_attrs( array(
 				'content'        => '{{button_text}}',
 				'hover_selector' => '%%order_class%%.et_pb_button',
+				'visibility'     => array(
+					'button_text' => '__not_empty',
+				),
 			) ),
 		) );
 
 		// Render module output
 		$output = sprintf(
-			'<div class="et_pb_button_module_wrapper et_pb_button_%3$s_wrapper %2$s et_pb_module "%4$s%5$s>
+			'<div class="et_pb_button_module_wrapper %3$s_wrapper %2$s et_pb_module "%4$s>
 				%1$s
 			</div>',
 			et_core_esc_previously( $button ),
 			esc_attr( $button_alignment_classes ),
-			esc_attr( $this->render_count() ),
-			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover )
+			esc_attr( ET_Builder_Element::get_module_order_class( $this->slug ) ),
+			et_core_esc_previously( $data_background_layout )
 		);
 
 		$transition_style = $this->get_transition_style( array( 'all' ) );
@@ -264,7 +255,7 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 		// Tablet.
 		$transition_style_tablet = $this->get_transition_style( array( 'all' ), 'tablet' );
 		if ( $transition_style_tablet !== $transition_style ) {
-			self::set_style( $function_name, array(
+			self::set_style( $render_slug, array(
 				'selector'    => '%%order_class%%, %%order_class%%:after',
 				'declaration' => esc_html( $transition_style_tablet ),
 				'media_query' => ET_Builder_Element::get_media_query( 'max_width_980' ),
@@ -274,7 +265,7 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 		// Phone.
 		$transition_style_phone = $this->get_transition_style( array( 'all' ), 'phone' );
 		if ( $transition_style_phone !== $transition_style || $transition_style_phone !== $transition_style_tablet ) {
-			self::set_style( $function_name, array(
+			self::set_style( $render_slug, array(
 				'selector'    => '%%order_class%%, %%order_class%%:after',
 				'declaration' => esc_html( $transition_style_phone ),
 				'media_query' => ET_Builder_Element::get_media_query( 'max_width_767' ),
@@ -288,7 +279,7 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 	 * Filter multi view value.
 	 *
 	 * @since 3.27.1
-	 * 
+	 *
 	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
 	 *
 	 * @param mixed $raw_value Props raw value.
@@ -306,14 +297,15 @@ class ET_Builder_Module_Button extends ET_Builder_Module {
 	 * @return mixed
 	 */
 	public function multi_view_filter_value( $raw_value, $args, $multi_view ) {
-		$name = isset( $args['name'] ) ? $args['name'] : '';
-		$mode = isset( $args['mode'] ) ? $args['mode'] : '';
+		$name    = isset( $args['name'] ) ? $args['name'] : '';
+		$mode    = isset( $args['mode'] ) ? $args['mode'] : '';
+		$context = isset( $args['context'] ) ? $args['context'] : '';
 
 		$fields_need_escape = array(
 			'title',
 		);
 
-		if ( $raw_value && in_array( $name, $fields_need_escape, true ) ) {
+		if ( $raw_value && 'content' === $context && in_array( $name, $fields_need_escape, true ) ) {
 			return $this->_esc_attr( $multi_view->get_name_by_mode( $name, $mode ) );
 		}
 

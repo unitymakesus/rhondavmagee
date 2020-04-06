@@ -2,7 +2,9 @@
 
 require_once 'helpers/Overlay.php';
 
+
 class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
+
 	function init() {
 		$this->name       = esc_html__( 'Shop', 'et_builder' );
 		$this->plural     = esc_html__( 'Shops', 'et_builder' );
@@ -22,6 +24,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 				'toggles' => array(
 					'overlay' => esc_html__( 'Overlay', 'et_builder' ),
 					'image'   => esc_html__( 'Image', 'et_builder' ),
+					'star'    => esc_html__( 'Star Rating', 'et_builder' ),
 				),
 			),
 		);
@@ -68,7 +71,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 				'sale_price' => array(
 					'label'           => esc_html__( 'Sale Price', 'et_builder' ),
 					'css'             => array(
-						'main'    => "{$this->main_css_element} .woocommerce ul.products li.product .price ins .amount",
+						'main' => "{$this->main_css_element} .woocommerce ul.products li.product .price ins .amount",
 					),
 					'hide_text_align' => true,
 					'font'            => array(
@@ -82,15 +85,44 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 						),
 					),
 				),
+				'rating'     => array(
+					'label'            => esc_html__( 'Star Rating', 'et_builder' ),
+					'css'              => array(
+						'main'                 => '%%order_class%% .star-rating',
+						'hover'                => '%%order_class%% li.product:hover .star-rating',
+						'color'                => '%%order_class%% .star-rating > span:before',
+						'color_hover'          => '%%order_class%% li.product:hover .star-rating > span:before',
+						'letter_spacing_hover' => '%%order_class%% li.product:hover .star-rating',
+						'important'            => array( 'size' ),
+					),
+					'font_size'        => array(
+						'default' => '14px',
+					),
+					'hide_font'        => true,
+					'hide_line_height' => true,
+					'hide_text_shadow' => true,
+					'text_align'       => array(
+						'label' => esc_html__( 'Star Rating Alignment', 'et_builder' ),
+					),
+					'font_size'        => array(
+						'label' => esc_html__( 'Star Rating Size', 'et_builder' ),
+					),
+					'text_color'       => array(
+						'label' => esc_html__( 'Star Rating Color', 'et_builder' ),
+					),
+					'toggle_slug'      => 'star',
+				),
 			),
 			'borders'               => array(
 				'default' => array(),
 				'image' => array(
 					'css'          => array(
 						'main' => array(
-							'border_radii'  => "{$this->main_css_element} .et_shop_image > img",
+							'border_radii'  => "{$this->main_css_element} .et_shop_image > img, {$this->main_css_element} .et_shop_image .et_overlay",
+							'border_radii_hover'  => "{$this->main_css_element} .et_shop_image > img:hover, {$this->main_css_element} .et_shop_image .et_overlay",
 							'border_styles' => "{$this->main_css_element} .et_shop_image > img",
 						),
+						'important' => 'all',
 					),
 					'label_prefix' => esc_html__( 'Image', 'et_builder' ),
 					'tab_slug'     => 'advanced',
@@ -105,8 +137,9 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'tab_slug'        => 'advanced',
 					'toggle_slug'     => 'image',
 					'css'             => array(
-						'main'         => '%%order_class%% .et_shop_image',
+						'main'         => '%%order_class%%.et_pb_module .woocommerce .et_shop_image > img, %%order_class%%.et_pb_module .woocommerce .et_overlay',
 						'overlay' => 'inset',
+						'important' => true,
 					),
 					'default_on_fronts'  => array(
 						'color'    => '',
@@ -147,6 +180,9 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 				'css' => array(
 					'main' => '%%order_class%% .et_shop_image',
 				),
+			),
+			'scroll_effects'        => array(
+				'grid_support' => 'yes',
 			),
 			'button'                => false,
 		);
@@ -194,130 +230,60 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 		);
 	}
 
-	protected function _add_remove_pagination_callbacks( $verb, $shortcode_type ) {
-		if ( 'add' !== $verb && 'remove' !== $verb ) {
-			ET_Core_Logger::error( 'Invalid argument!' );
-			return;
-		} else if ( ! function_exists( 'WC' ) ) {
-			return;
-		}
-
-		$toggle_action = $verb . '_action';
-		$toggle_filter = $verb . '_filter';
-
-		$toggle_action( 'pre_get_posts', array( $this, 'add_paged_param' ) );
-
-		$toggle_filter( 'woocommerce_shortcode_products_query', array( $this, 'shortcode_products_query_cb' ), 10 );
-
-		$toggle_action( 'woocommerce_shortcode_after_' . $shortcode_type . '_loop', array( $this, 'add_pagination' ), 10 );
-
-		// reset et_pb_shop_pages when removing pagintaion to avoid conflicts with other shop modules on page.
-		if ( 'remove' === $verb ) {
-			$GLOBALS['et_pb_shop_pages'] = 0;
-		}
-	}
-
-	/**
-	 * Add the paged param to a product shortcode query.
-	 *
-	 * @param WP_Query $query
-	 */
-	public function add_paged_param( $query ) {
-		$is_product_query = self::is_product_query( $query );
-
-		if ( ! $is_product_query || is_archive() || is_post_type_archive() ) {
-			return;
-		}
-
-		$paged = $this->get_paged_var();
-
-		$query->is_paged                    = true;
-		$query->query['paged']              = $paged;
-		$query->query_vars['paged']         = $paged;
-
-		$query->query['posts_per_page']      = (int) $this->props['posts_number'];
-		$query->query_vars['posts_per_page'] = (int) $this->props['posts_number'];
-
-		$query->query['no_found_rows']      = false;
-		$query->query_vars['no_found_rows'] = false;
-	}
-
-	/**
-	 * Add pagination to the shortcode after loop end
-	 *
-	 * @param array $atts
-	 */
-	public function add_pagination( $atts ) {
-		$query_var  = is_front_page() ? 'page' : 'paged';
-		$paged      = get_query_var( $query_var ) ? get_query_var( $query_var ) : 1;
-		$multi_view = et_pb_multi_view_options( $this );
-
-		// no need to display pagination if all the products appear on 1 page.
-		if ( ! isset( $GLOBALS['et_pb_shop_pages'] ) || $GLOBALS['et_pb_shop_pages'] < 1 ) {
-			return;
-		}
-
-		$paginate_links = paginate_links( apply_filters( 'woocommerce_pagination_args', array(
-			'base'      => esc_url_raw( str_replace( 999999999, '%#%', remove_query_arg( 'add-to-cart', get_pagenum_link( 999999999, false ) ) ) ),
-			'format'    => '',
-			'add_args'  => false,
-			'current'   => max( 1, $paged ),
-			'total'     => $GLOBALS['et_pb_shop_pages'],
-			'prev_text' => '&larr;',
-			'next_text' => '&rarr;',
-			'type'      => 'list',
-			'end_size'  => 3,
-			'mid_size'  => 3,
-		) ) );
-
-		$multi_view->render_element( array(
-			'tag'     => 'nav',
-			'content' => $paginate_links,
-			'attrs'   => array(
-				'class' => 'woocommerce-pagination',
-			),
-			'visibility' => array(
-				'show_pagination' => 'on',
-			),
-		), true );
-	}
-
 	function get_fields() {
 		$fields = array(
-			'type' => array(
-				'label'           => esc_html__( 'Product Type', 'et_builder' ),
-				'type'            => 'select',
-				'option_category' => 'basic_option',
-				'options'         => array(
-					'recent'  => esc_html__( 'Recent Products', 'et_builder' ),
-					'featured' => esc_html__( 'Featured Products', 'et_builder' ),
-					'sale' => esc_html__( 'Sale Products', 'et_builder' ),
-					'best_selling' => esc_html__( 'Best Selling Products', 'et_builder' ),
-					'top_rated' => esc_html__( 'Top Rated Products', 'et_builder' ),
+			'type'                => array(
+				'label'            => esc_html__( 'Product View Type', 'et_builder' ),
+				'type'             => 'select',
+				'option_category'  => 'basic_option',
+				'options'          => array(
+					'recent'           => esc_html__( 'Recent Products', 'et_builder' ),
+					'featured'         => esc_html__( 'Featured Products', 'et_builder' ),
+					'sale'             => esc_html__( 'Sale Products', 'et_builder' ),
+					'best_selling'     => esc_html__( 'Best Selling Products', 'et_builder' ),
+					'top_rated'        => esc_html__( 'Top Rated Products', 'et_builder' ),
 					'product_category' => esc_html__( 'Product Category', 'et_builder' ),
 				),
 				'default_on_front' => 'recent',
-				'affects'        => array(
+				'affects'          => array(
 					'include_categories',
 				),
-				'description'      => esc_html__( 'Choose which type of products you would like to display.', 'et_builder' ),
+				'description'      => esc_html__( 'Choose which type of product view you would like to display.', 'et_builder' ),
 				'toggle_slug'      => 'main_content',
 				'computed_affects' => array(
 					'__shop',
 				),
 			),
-			'posts_number' => array(
-				'default'           => '12',
-				'label'             => esc_html__( 'Product Count', 'et_builder' ),
-				'type'              => 'text',
-				'option_category'   => 'configuration',
-				'description'       => esc_html__( 'Define the number of products that should be displayed per page.', 'et_builder' ),
-				'computed_affects'  => array(
+			'use_current_loop'    => array(
+				'label'            => esc_html__( 'Use Current Page', 'et_builder' ),
+				'type'             => 'yes_no_button',
+				'option_category'  => 'configuration',
+				'options'          => array(
+					'on'  => esc_html__( 'Yes', 'et_builder' ),
+					'off' => esc_html__( 'No', 'et_builder' ),
+				),
+				'description'      => esc_html__( 'Only include products for the current page. Useful on archive and index pages. For example let\'s say you used this module on a Theme Builder layout that is enabled for product categories. Selecting the "Sale Products" view type above and enabling this option would show only products that are on sale when viewing product categories.', 'et_builder' ),
+				'toggle_slug'      => 'main_content',
+				'default'          => 'off',
+				'show_if'          => array(
+					'function.isTBLayout' => 'on',
+				),
+				'computed_affects' => array(
 					'__shop',
 				),
-				'toggle_slug'       => 'main_content',
 			),
-			'show_pagination' => array(
+			'posts_number'        => array(
+				'default'          => '12',
+				'label'            => esc_html__( 'Product Count', 'et_builder' ),
+				'type'             => 'text',
+				'option_category'  => 'configuration',
+				'description'      => esc_html__( 'Define the number of products that should be displayed per page.', 'et_builder' ),
+				'computed_affects' => array(
+					'__shop',
+				),
+				'toggle_slug'      => 'main_content',
+			),
+			'show_pagination'     => array(
 				'label'            => esc_html__( 'Show Pagination', 'et_builder' ),
 				'type'             => 'yes_no_button',
 				'option_category'  => 'configuration',
@@ -334,7 +300,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 				'mobile_options'   => true,
 				'hover'            => 'tabs',
 			),
-			'include_categories'   => array(
+			'include_categories'  => array(
 				'label'            => esc_html__( 'Included Categories', 'et_builder' ),
 				'type'             => 'categories',
 				'meta_categories'  => array(
@@ -342,8 +308,8 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'current' => esc_html__( 'Current Category', 'et_builder' ),
 				),
 				'renderer_options' => array(
-					'use_terms'    => true,
-					'term_name'    => 'product_cat',
+					'use_terms' => true,
+					'term_name' => 'product_cat',
 				),
 				'depends_show_if'  => 'product_category',
 				'description'      => esc_html__( 'Choose which categories you would like to include.', 'et_builder' ),
@@ -353,11 +319,11 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'__shop',
 				),
 			),
-			'columns_number' => array(
-				'label'             => esc_html__( 'Column Layout', 'et_builder' ),
-				'type'              => 'select',
-				'option_category'   => 'layout',
-				'options'           => array(
+			'columns_number'      => array(
+				'label'            => esc_html__( 'Column Layout', 'et_builder' ),
+				'type'             => 'select',
+				'option_category'  => 'layout',
+				'options'          => array(
 					'0' => esc_html__( 'default', 'et_builder' ),
 					'6' => sprintf( esc_html__( '%1$s Columns', 'et_builder' ), esc_html( '6' ) ),
 					'5' => sprintf( esc_html__( '%1$s Columns', 'et_builder' ), esc_html( '5' ) ),
@@ -366,18 +332,18 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'2' => sprintf( esc_html__( '%1$s Columns', 'et_builder' ), esc_html( '2' ) ),
 					'1' => esc_html__( '1 Column', 'et_builder' ),
 				),
-				'default_on_front'  => '0',
-				'description'       => esc_html__( 'Choose how many columns to display.', 'et_builder' ),
-				'computed_affects'  => array(
+				'default_on_front' => '0',
+				'description'      => esc_html__( 'Choose how many columns to display.', 'et_builder' ),
+				'computed_affects' => array(
 					'__shop',
 				),
-				'toggle_slug'       => 'main_content',
+				'toggle_slug'      => 'main_content',
 			),
-			'orderby' => array(
-				'label'             => esc_html__( 'Order', 'et_builder' ),
-				'type'              => 'select',
-				'option_category'   => 'configuration',
-				'options'           => array(
+			'orderby'             => array(
+				'label'            => esc_html__( 'Order', 'et_builder' ),
+				'type'             => 'select',
+				'option_category'  => 'configuration',
+				'options'          => array(
 					'default'    => esc_html__( 'Default Sorting', 'et_builder' ),
 					'menu_order' => esc_html__( 'Sort by Menu Order', 'et_builder' ),
 					'popularity' => esc_html__( 'Sort By Popularity', 'et_builder' ),
@@ -388,51 +354,54 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'price-desc' => esc_html__( 'Sort By Price: High To Low', 'et_builder' ),
 				),
 				'default_on_front' => 'default',
-				'description'       => esc_html__( 'Choose how your products should be ordered.', 'et_builder' ),
-				'computed_affects'  => array(
+				'description'      => esc_html__( 'Choose how your products should be ordered.', 'et_builder' ),
+				'computed_affects' => array(
 					'__shop',
 				),
-				'toggle_slug'       => 'main_content',
+				'toggle_slug'      => 'main_content',
+				'show_if_not'      => array(
+					'type' => 'recent',
+				),
 			),
-			'sale_badge_color' => array(
-				'label'             => esc_html__( 'Sale Badge Color', 'et_builder' ),
-				'description'       => esc_html__( 'Pick a color to use for the sales bade that appears on products that are on sale.', 'et_builder' ),
-				'type'              => 'color-alpha',
-				'custom_color'      => true,
-				'tab_slug'          => 'advanced',
-				'toggle_slug'       => 'sale_badge',
-				'hover'             => 'tabs',
-				'mobile_options'    => true,
+			'sale_badge_color'    => array(
+				'label'          => esc_html__( 'Sale Badge Color', 'et_builder' ),
+				'description'    => esc_html__( 'Pick a color to use for the sales bade that appears on products that are on sale.', 'et_builder' ),
+				'type'           => 'color-alpha',
+				'custom_color'   => true,
+				'tab_slug'       => 'advanced',
+				'toggle_slug'    => 'sale_badge',
+				'hover'          => 'tabs',
+				'mobile_options' => true,
 			),
-			'icon_hover_color' => array(
-				'label'             => esc_html__( 'Overlay Icon Color', 'et_builder' ),
-				'description'       => esc_html__( 'Pick a color to use for the icon that appears when hovering over a product.', 'et_builder' ),
-				'type'              => 'color-alpha',
-				'custom_color'      => true,
-				'tab_slug'          => 'advanced',
-				'toggle_slug'       => 'overlay',
-				'mobile_options'    => true,
+			'icon_hover_color'    => array(
+				'label'          => esc_html__( 'Overlay Icon Color', 'et_builder' ),
+				'description'    => esc_html__( 'Pick a color to use for the icon that appears when hovering over a product.', 'et_builder' ),
+				'type'           => 'color-alpha',
+				'custom_color'   => true,
+				'tab_slug'       => 'advanced',
+				'toggle_slug'    => 'overlay',
+				'mobile_options' => true,
 			),
 			'hover_overlay_color' => array(
-				'label'             => esc_html__( 'Overlay Background Color', 'et_builder' ),
-				'description'       => esc_html__( 'Here you can define a custom color for the overlay', 'et_builder' ),
-				'type'              => 'color-alpha',
-				'custom_color'      => true,
-				'tab_slug'          => 'advanced',
-				'toggle_slug'       => 'overlay',
-				'mobile_options'    => true,
+				'label'          => esc_html__( 'Overlay Background Color', 'et_builder' ),
+				'description'    => esc_html__( 'Here you can define a custom color for the overlay', 'et_builder' ),
+				'type'           => 'color-alpha',
+				'custom_color'   => true,
+				'tab_slug'       => 'advanced',
+				'toggle_slug'    => 'overlay',
+				'mobile_options' => true,
 			),
-			'hover_icon' => array(
-				'label'               => esc_html__( 'Overlay Icon', 'et_builder' ),
-				'description'         => esc_html__( 'Here you can define a custom icon for the overlay', 'et_builder' ),
-				'type'                => 'select_icon',
-				'option_category'     => 'configuration',
-				'class'               => array( 'et-pb-font-icon' ),
-				'tab_slug'            => 'advanced',
-				'toggle_slug'         => 'overlay',
-				'mobile_options'      => true,
+			'hover_icon'          => array(
+				'label'           => esc_html__( 'Overlay Icon', 'et_builder' ),
+				'description'     => esc_html__( 'Here you can define a custom icon for the overlay', 'et_builder' ),
+				'type'            => 'select_icon',
+				'option_category' => 'configuration',
+				'class'           => array( 'et-pb-font-icon' ),
+				'tab_slug'        => 'advanced',
+				'toggle_slug'     => 'overlay',
+				'mobile_options'  => true,
 			),
-			'__shop' => array(
+			'__shop'              => array(
 				'type'                => 'computed',
 				'computed_callback'   => array( 'ET_Builder_Module_Shop', 'get_shop_html' ),
 				'computed_depends_on' => array(
@@ -443,16 +412,18 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'columns_number',
 					'show_pagination',
 					'__page',
+					'use_current_loop',
 				),
 				'computed_minimum'    => array(
 					'posts_number',
 					'show_pagination',
 					'__page',
+					'use_current_loop',
 				),
 			),
-			'__page' => array(
-				'type'              => 'computed',
-				'computed_callback' => array( 'ET_Builder_Module_Shop', 'get_shop_html' ),
+			'__page'              => array(
+				'type'                => 'computed',
+				'computed_callback'   => array( 'ET_Builder_Module_Shop', 'get_shop_html' ),
 				'computed_depends_on' => array(
 					'type',
 					'include_categories',
@@ -461,7 +432,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 					'columns_number',
 					'show_pagination',
 				),
-				'computed_affects'  => array(
+				'computed_affects'    => array(
 					'__shop',
 				),
 			),
@@ -470,27 +441,28 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 		return $fields;
 	}
 
+	/**
+	 * @inheritdoc
+	 *
+	 * @since 4.0.6 Handle star rating letter spacing.
+	 */
 	public function get_transition_fields_css_props() {
 		$fields = parent::get_transition_fields_css_props();
 
-		$fields['sale_badge_color'] = array( 'background-color' => '%%order_class%% span.onsale' );
+		$fields['sale_badge_color']      = array( 'background-color' => '%%order_class%% span.onsale' );
+		$fields['rating_letter_spacing'] = array(
+			'width'          => '%%order_class%% .star-rating',
+			'letter-spacing' => '%%order_class%% .star-rating',
+		);
 
-		return $fields;
-	}
+		$is_hover_enabled = et_builder_is_hover_enabled( 'rating_letter_spacing', $this->props )
+			|| et_builder_is_hover_enabled( 'rating_font_size', $this->props );
 
-	/**
-	 * Get paged var
-	 */
-	public function get_paged_var() {
-		if ( ! empty( $this->props['__page'] ) ) {
-			// For the VB
-			$paged = $this->props['__page'];
-		} else {
-			$query_var = is_front_page() ? 'page' : 'paged';
-			$paged     = get_query_var( $query_var );
+		if ( $is_hover_enabled && isset( $fields['rating_text_color'] ) ) {
+			unset( $fields['rating_text_color'] );
 		}
 
-		return $paged ? $paged : 1;
+		return $fields;
 	}
 
 	function add_product_class_name( $classes ) {
@@ -504,20 +476,42 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			$this->props[ $arg ] = $value;
 		}
 
-		$multi_view              = et_pb_multi_view_options( $this );
-		$post_id                 = isset( $current_page['id'] ) ? (int) $current_page['id'] : 0;
-		$type                    = $this->props['type'];
-		$posts_number            = $this->props['posts_number'];
-		$orderby                 = $this->props['orderby'];
-		$order                   = 'ASC'; // Default to ascending order
-		$columns                 = $this->props['columns_number'];
-		$pagination              = $multi_view->has_value( 'show_pagination', 'on' );
-		$product_categories      = array();
+		$post_id            = isset( $current_page['id'] ) ? (int) $current_page['id'] : 0;
+		$type               = $this->props['type'];
+		$posts_number       = $this->props['posts_number'];
+		$orderby            = 'recent' === $type ? 'id' : $this->props['orderby'];
+		$order              = 'recent' === $type ? 'DESC' : 'ASC';
+		$columns            = $this->props['columns_number'];
+		$pagination         = 'on' === $this->prop( 'show_pagination', 'off' );
+		$product_categories = array();
+		$product_tags       = array();
+		$use_current_loop   = 'on' === $this->prop( 'use_current_loop', 'off' );
+		$use_current_loop   = $use_current_loop && ( is_post_type_archive( 'product' ) || is_search() || et_is_product_taxonomy() );
+		$product_attribute  = '';
+		$product_terms      = array();
 
-		if ('product_category' === $type) {
+		if ( $use_current_loop ) {
+			$this->props['include_categories'] = 'all';
+
+			if ( is_product_category() ) {
+				$this->props['include_categories'] = (string) get_queried_object_id();
+			} else if ( is_product_tag() ) {
+				$product_tags = array( get_queried_object()->slug );
+			} else if ( is_product_taxonomy() ) {
+				$term = get_queried_object();
+
+				// Product attribute taxonomy slugs start with pa_
+				if ( et_()->starts_with( $term->taxonomy, 'pa_' ) ) {
+					$product_attribute = $term->taxonomy;
+					$product_terms[]   = $term->slug;
+				}
+			}
+		}
+
+		if ( 'product_category' === $type || ( $use_current_loop && ! empty( $this->props['include_categories'] ) ) ) {
 			$all_shop_categories     = et_builder_get_shop_categories();
 			$all_shop_categories_map = array();
-			$raw_product_categories  = self::filter_meta_categories( $this->props['include_categories'], $post_id, 'product_cat' );
+			$raw_product_categories  = self::filter_include_categories( $this->props['include_categories'], $post_id, 'product_cat' );
 
 			foreach ( $all_shop_categories as $term ) {
 				if ( is_object( $term ) && is_a( $term, 'WP_Term' ) ) {
@@ -535,7 +529,7 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			}
 		}
 
-		if ( 'default' === $orderby ) {
+		if ( 'default' === $orderby && 'recent' !== $type ) {
 			// Leave the attribute empty to allow WooCommerce to take over and use the default sorting.
 			$orderby = '';
 		}
@@ -548,45 +542,58 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			$order = 'DESC';
 		}
 
-		$woocommerce_shortcodes_types = array(
-			'recent'           => 'recent_products',
-			'featured'         => 'featured_products',
-			'sale'             => 'sale_products',
-			'best_selling'     => 'best_selling_products',
-			'top_rated'        => 'top_rated_products',
-			'product_category' => 'product_category',
+		$ids             = array();
+		$wc_custom_view  = '';
+		$wc_custom_views = array(
+			'sale'         => array( 'on_sale', 'true' ),
+			'best_selling' => array( 'best_selling', 'true' ),
+			'top_rated'    => array( 'top_rated', 'true' ),
+			'featured'     => array( 'visibility', 'featured' ),
 		);
 
-		if ( $pagination ) {
-			$this->_add_remove_pagination_callbacks( 'add', $woocommerce_shortcodes_types[$type] );
+		if ( et_()->includes( array_keys( $wc_custom_views ), $type ) ) {
+			$custom_view_data = $wc_custom_views[ $type ];
+			$wc_custom_view   = sprintf( '%1$s="%2$s"', esc_attr( $custom_view_data[0] ), esc_attr( $custom_view_data[1] ) );
 		}
+
+		$shortcode = sprintf(
+			'[products %1$s limit="%2$s" orderby="%3$s" columns="%4$s" %5$s order="%6$s" %7$s %8$s %9$s %10$s %11$s]',
+			et_core_intentionally_unescaped( $wc_custom_view, 'fixed_string' ),
+			esc_attr( $posts_number ),
+			esc_attr( $orderby ),
+			esc_attr( $columns ),
+			$product_categories ? sprintf( 'category="%s"', esc_attr( implode( ',', $product_categories ) ) ) : '',
+			esc_attr( $order ),
+			$pagination ? 'paginate="true"' : '',
+			$ids ? sprintf( 'ids="%s"', esc_attr( implode( ',', $ids ) ) ) : '',
+			$product_tags ? sprintf( 'tag="%s"', esc_attr( implode( ',', $product_tags ) ) ) : '',
+			$product_attribute ? sprintf( 'attribute="%s"', esc_attr( $product_attribute ) ) : '',
+			$product_terms ? sprintf( 'terms="%s"', esc_attr( implode( ',', $product_terms ) ) ) : ''
+		);
 
 		do_action( 'et_pb_shop_before_print_shop' );
 
-		// https://github.com/woocommerce/woocommerce/issues/17769
-		$post = $GLOBALS['post'];
+		global $wp_the_query;
 
-		$shop = do_shortcode(
-			sprintf( '[%1$s per_page="%2$s" orderby="%3$s" columns="%4$s" %5$s order="%6$s"]',
-				esc_html( $woocommerce_shortcodes_types[ $type ] ),
-				esc_attr( $posts_number ),
-				esc_attr( $orderby ),
-				esc_attr( $columns ),
-				! empty( $product_categories ) ? sprintf( 'category="%s"', esc_attr( implode( ',', $product_categories ) ) ) : '',
-				esc_attr( $order )
-			)
-		);
+		$query_backup = $wp_the_query;
 
-		// https://github.com/woocommerce/woocommerce/issues/17769
-		$GLOBALS['post'] = $post; // phpcs:ignore WordPress.Variables.GlobalVariables.OverrideProhibited
+		if ( $use_current_loop ) {
+			add_filter( 'woocommerce_shortcode_products_query', array( $this, 'filter_products_query' ) );
+			add_action( 'pre_get_posts', array( $this, 'apply_woo_widget_filters' ), 0 );
+		}
+
+		$shop = do_shortcode( $shortcode );
+
+		if ( $use_current_loop ) {
+			remove_action( 'pre_get_posts', array( $this, 'apply_woo_widget_filters' ), 0 );
+			remove_filter( 'woocommerce_shortcode_products_query', array( $this, 'filter_products_query' ) );
+		}
+
+		$wp_the_query = $query_backup;
 
 		do_action( 'et_pb_shop_after_print_shop' );
 
-		if ( $pagination ) {
-			$this->_add_remove_pagination_callbacks( 'remove', $woocommerce_shortcodes_types[$type] );
-		}
-
-		if ( '<div class="woocommerce columns-0"></div>' === $shop ) {
+		if ( '<div class="woocommerce columns-0"></div>' === $shop || et_()->starts_with( $shop, $shortcode ) ) {
 			$shop = self::get_no_results_template();
 		}
 
@@ -637,35 +644,6 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 		}
 
 		return $title_selector;
-	}
-
-	/**
-	 * Whether or not the provided query is for products.
-	 *
-	 * @param WP_Query $query
-	 *
-	 * @return bool
-	 */
-	public static function is_product_query( $query ) {
-		if ( ! isset( $query->query['post_type'] ) || ! empty( $query->query['p'] ) ) {
-			return false;
-		}
-
-		if ( isset( $query->query['composite_component'] ) ) {
-			return false;
-		}
-
-		$post_type = $query->query['post_type'];
-
-		if ( 'product' === $post_type ) {
-			return true;
-		}
-
-		if ( is_array( $post_type ) && in_array( 'product', $post_type ) ) {
-			return true;
-		}
-
-		return false;
 	}
 
 	function render( $attrs, $content = null, $render_slug ) {
@@ -722,6 +700,15 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			'icon_phone'  => $hover_icon_phone,
 		) );
 
+		if ( class_exists( 'ET_Builder_Module_Helper_Woocommerce_Modules' ) ) {
+			ET_Builder_Module_Helper_Woocommerce_Modules::add_star_rating_style(
+				$render_slug,
+				$this->props,
+				'%%order_class%% ul.products li.product .star-rating',
+				'%%order_class%% ul.products li.product:hover .star-rating'
+			);
+		}
+
 		// Module classnames
 		$this->add_classname( array(
 			$this->get_text_orientation_classname(),
@@ -730,9 +717,11 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 		if ( '0' === $columns ) {
 			$this->add_classname( 'et_pb_shop_grid' );
 		}
+		
+		$shop_order = self::_get_index( array( self::INDEX_MODULE_ORDER, $render_slug ) );
 
 		$output = sprintf(
-			'<div%2$s class="%3$s" %6$s>
+			'<div%2$s class="%3$s" %6$s data-shortcode_index="%7$s">
 				%5$s
 				%4$s
 				%1$s
@@ -742,28 +731,59 @@ class ET_Builder_Module_Shop extends ET_Builder_Module_Type_PostBased {
 			$this->module_classname( $render_slug ),
 			$video_background,
 			$parallax_image_background,
-			et_core_esc_previously( $overlay_attributes )
+			et_core_esc_previously( $overlay_attributes ),
+			esc_attr( $shop_order )
 		);
 
 		return $output;
 	}
 
 	/**
-	 * Products shortcode query args.
+	 * Filter the products query arguments.
 	 *
-	 * @param array  $query_args
+	 * @since 4.0.5
+	 *
+	 * @param array $query_args
 	 *
 	 * @return array
 	 */
-	public function shortcode_products_query_cb( $query_args ) {
-		$query_args['paged'] = $this->get_paged_var();
+	public function filter_products_query( $query_args ) {
+		if ( is_search() ) {
+			$query_args['s'] = get_search_query();
+		}
 
-		$products   = new WP_Query( $query_args );
+		if ( function_exists( 'WC' ) ) {
+			$query_args['meta_query'] = WC()->query->get_meta_query( et_()->array_get( $query_args, 'meta_query', array() ), true );
+			$query_args['tax_query'] = WC()->query->get_tax_query( et_()->array_get( $query_args, 'tax_query', array() ), true );
 
-		// save the number of pages to global var so it can be used to render pagination
-		$GLOBALS['et_pb_shop_pages'] = $products->max_num_pages;
+			// Add fake cache-busting arguments as the filtering is actually done in self::apply_woo_widget_filters().
+			$query_args['et_builder_filter_min_price'] = sanitize_text_field( et_()->array_get( $_GET, 'min_price', '' ) );
+			$query_args['et_builder_filter_max_price'] = sanitize_text_field( et_()->array_get( $_GET, 'max_price', '' ) );
+		}
 
 		return $query_args;
+	}
+
+	/**
+	 * Filter the products shortcode query so Woo widget filters apply.
+	 *
+	 * @since 4.0.8
+	 *
+	 * @param WP_Query $query
+	 */
+	public function apply_woo_widget_filters( $query ) {
+		global $wp_the_query;
+
+		// Trick Woo filters into thinking the products shortcode query is the
+		// main page query as some widget filters have is_main_query checks.
+		$wp_the_query = $query;
+
+		// Set a flag to track that the main query is falsified.
+		$wp_the_query->et_pb_shop_query = true;
+
+		if ( function_exists( 'WC' ) ) {
+			add_filter( 'posts_clauses', array( WC()->query, 'price_filter_post_clauses' ), 10, 2 );
+		}
 	}
 }
 

@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -16,6 +16,8 @@
 class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 	/**
 	 * Initialize.
+	 *
+	 * @since 4.0.6 Updated `toggle_slug` to avoid empty Tabs in Text OG.
 	 */
 	public function init() {
 		$this->name       = esc_html__( 'Woo Description', 'et_builder' );
@@ -31,7 +33,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 			),
 			'advanced' => array(
 				'toggles' => array(
-					'text'   => array(
+					'body'   => array(
 						'title'             => esc_html__( 'Text', 'et_builder' ),
 						'priority'          => 45,
 						'tabbed_subtoggles' => true,
@@ -112,7 +114,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 					'font_size'       => array(
 						'default' => absint( et_get_option( 'body_font_size', '14' ) ) . 'px',
 					),
-					'toggle_slug'     => 'text',
+					'toggle_slug'     => 'body',
 					'sub_toggle'      => 'p',
 					'hide_text_align' => true,
 				),
@@ -128,7 +130,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 					'font_size'       => array(
 						'default' => absint( et_get_option( 'body_font_size', '14' ) ) . 'px',
 					),
-					'toggle_slug'     => 'text',
+					'toggle_slug'     => 'body',
 					'sub_toggle'      => 'a',
 					'hide_text_align' => true,
 				),
@@ -145,7 +147,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 					'font_size'   => array(
 						'default' => '14px',
 					),
-					'toggle_slug' => 'text',
+					'toggle_slug' => 'body',
 					'sub_toggle'  => 'ul',
 				),
 				'ol'       => array(
@@ -161,7 +163,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 					'font_size'   => array(
 						'default' => '14px',
 					),
-					'toggle_slug' => 'text',
+					'toggle_slug' => 'body',
 					'sub_toggle'  => 'ol',
 				),
 				'quote'    => array(
@@ -176,7 +178,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 					'font_size'   => array(
 						'default' => '14px',
 					),
-					'toggle_slug' => 'text',
+					'toggle_slug' => 'body',
 					'sub_toggle'  => 'quote',
 				),
 				'header'   => array(
@@ -277,6 +279,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 			'text'           => array(
 				'use_background_layout' => true,
 				'sub_toggle'            => 'p',
+				'toggle_slug'           => 'body',
 				'options'               => array(
 					'text_orientation'  => array(
 						'default' => 'left',
@@ -310,7 +313,7 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 			'product'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__description',
 					),
@@ -370,12 +373,26 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 	 *
 	 * @return string
 	 */
-	public static function get_description( $args = array() ) {
+	public static function get_description( $args = array(), $conditional_tags = array(), $current_page = array() ) {
 		$defaults    = array(
 			'product'          => 'current',
 			'description_type' => 'short_description',
 		);
 		$args        = wp_parse_args( $args, $defaults );
+
+		// Theme builder's description placeholder; short-circuit is cleaner and more efficient than
+		// global object element being modified. NOTE: $conditional_tags element value is string
+		if ( et_builder_tb_enabled() || 'true' === et_()->array_get( $conditional_tags, 'is_tb', false ) ) {
+			$placeholders = et_theme_builder_wc_placeholders();
+
+			$description = 'short_description' === $args['description_type'] ?
+				$placeholders['short_description'] :
+				$placeholders['description'];
+
+			// Description comes from Post Content or Excerpt or Custom Field which is processed by WP and should be properly escaped during save.
+			return et_core_intentionally_unescaped( $description, 'html' );
+		}
+
 		$post_id     = ET_Builder_Module_Helper_Woocommerce_Modules::get_product_id( $args['product'] );
 		$post        = get_post( $post_id );
 
@@ -386,12 +403,13 @@ class ET_Builder_Module_Woocommerce_Description extends ET_Builder_Module {
 		if ( 'description' === $args['description_type'] ) {
 			// If builder is not used on given post, display post content.
 			if ( ! et_pb_is_pagebuilder_used( $post_id ) ) {
-				$description = $post->post_content;
+				$description = apply_filters( 'the_content', $post->post_content );
 			} else {
 				$description = get_post_meta( $post->ID, ET_BUILDER_WC_PRODUCT_LONG_DESC_META_KEY, true );
+				$description = wpautop( $description );
 			}
 		} else {
-			$description = $post->post_excerpt;
+			$description = apply_filters( 'woocommerce_short_description', $post->post_excerpt );
 		}
 
 		// Description comes from Post Content or Excerpt or Custom Field which is processed by WP and should be properly escaped during save.

@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -16,6 +16,8 @@
 class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 	/**
 	 * Initialize.
+	 *
+	 * @since 4.0.6 Implemented Attribute Row, Title and Body Custom CSS fields.
 	 */
 	public function init() {
 		$this->name       = esc_html__( 'Woo Additional Info', 'et_builder' );
@@ -32,7 +34,7 @@ class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 			),
 			'advanced' => array(
 				'toggles' => array(
-					'text' => array(
+					'text'   => array(
 						'title'             => esc_html__( 'Text', 'et_builder' ),
 						'priority'          => 45,
 						'tabbed_subtoggles' => true,
@@ -47,6 +49,9 @@ class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 								'icon' => 'text-link',
 							),
 						),
+					),
+					'header' => array(
+						'title' => esc_html__( 'Title Text', 'et_builder' ),
 					),
 				),
 			),
@@ -99,6 +104,7 @@ class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 					'line_height' => array(
 						'default' => '1em',
 					),
+					'toggle_slug' => 'header',
 				),
 				'attribute' => array(
 					'label'       => esc_html__( 'Attribute', 'et_builder' ),
@@ -152,13 +158,25 @@ class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 		);
 
 		$this->custom_css_fields = array(
-			'title_text'   => array(
+			'title_text'      => array(
 				'label'    => esc_html__( 'Title Text', 'et_builder' ),
 				'selector' => 'h2',
 			),
-			'content_area' => array(
+			'content_area'    => array(
 				'label'    => esc_html__( 'Content Area', 'et_builder' ),
 				'selector' => '.shop_attributes',
+			),
+			'attribute_row'   => array(
+				'label'    => esc_html__( 'Attribute Row', 'et_builder' ),
+				'selector' => '.shop_attributes .woocommerce-product-attributes-item',
+			),
+			'attribute_title' => array(
+				'label'    => esc_html__( 'Attribute Title', 'et_builder' ),
+				'selector' => '.shop_attributes .woocommerce-product-attributes-item__label',
+			),
+			'attribute_text'  => array(
+				'label'    => esc_html__( 'Attribute Body', 'et_builder' ),
+				'selector' => '.shop_attributes .woocommerce-product-attributes-item__value',
 			),
 		);
 
@@ -178,7 +196,7 @@ class ET_Builder_Module_Woocommerce_Additional_Info extends ET_Builder_Module {
 			'product'           => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__additional_info',
 					),

@@ -217,6 +217,9 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 					),
 				),
 			),
+			'position_fields'       => array(
+				'default' => 'relative',
+			),
 		);
 
 		$this->custom_css_fields = array(
@@ -630,13 +633,6 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 		$background_overlay_color_values   = et_pb_responsive_options()->get_property_values( $this->props, 'background_overlay_color' );
 		$background_overlay_color_hover    = $this->get_hover_value( 'background_overlay_color' );
 
-		$background_layout                 = $this->props['background_layout'];
-		$background_layout_hover           = et_pb_hover_options()->get_value( 'background_layout', $this->props, 'light' );
-		$background_layout_hover_enabled   = et_pb_hover_options()->is_enabled( 'background_layout', $this->props );
-		$background_layout_values          = et_pb_responsive_options()->get_property_values( $this->props, 'background_layout' );
-		$background_layout_tablet          = isset( $background_layout_values['tablet'] ) ? $background_layout_values['tablet'] : '';
-		$background_layout_phone           = isset( $background_layout_values['phone'] ) ? $background_layout_values['phone'] : '';
-
 		$scroll_down_icon                  = $this->props['scroll_down_icon'];
 		$scroll_down_icon_values           = et_pb_responsive_options()->get_property_values( $this->props, 'scroll_down_icon' );
 		$scroll_down_icon_tablet           = isset( $scroll_down_icon_values['tablet'] ) ? $scroll_down_icon_values['tablet'] : '';
@@ -725,8 +721,11 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 			'custom_icon_tablet'  => $custom_icon_1_tablet,
 			'custom_icon_phone'   => $custom_icon_1_phone,
 			'has_wrapper'         => false,
-			'multi_view_data'  => $multi_view->render_attrs( array(
-				'content' => '{{button_one_text}}',
+			'multi_view_data'     => $multi_view->render_attrs( array(
+				'content'    => '{{button_one_text}}',
+				'visibility' => array(
+					'button_one_text' => '__not_empty',
+				),
 			) ),
 		) );
 
@@ -741,8 +740,11 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 			'custom_icon_tablet'  => $custom_icon_2_tablet,
 			'custom_icon_phone'   => $custom_icon_2_phone,
 			'has_wrapper'         => false,
-			'multi_view_data'  => $multi_view->render_attrs( array(
-				'content' => '{{button_two_text}}',
+			'multi_view_data'     => $multi_view->render_attrs( array(
+				'content'    => '{{button_two_text}}',
+				'visibility' => array(
+					'button_two_text' => '__not_empty',
+				),
 			) ),
 		) );
 
@@ -781,7 +783,7 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 					'src'   => '{{logo_image_url}}',
 					'class' => 'header-logo',
 					'title' => esc_attr( $logo_title ),
-					'alt'   => esc_attr( $logo_title ),
+					'alt'   => esc_attr( $logo_alt_text ),
 				),
 				'required' => 'logo_image_url',
 			) );
@@ -792,6 +794,7 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 				'attrs'   => array(
 					'class' => 'et_pb_header_content_wrapper',
 				),
+				'required' => false,
 			) );
 
 			$header_content = sprintf(
@@ -873,36 +876,29 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 			);
 		}
 
-		$data_background_layout       = '';
-		$data_background_layout_hover = '';
-		if ( $background_layout_hover_enabled ) {
-			$data_background_layout = sprintf(
-				' data-background-layout="%1$s"',
-				esc_attr( $background_layout )
-			);
-			$data_background_layout_hover = sprintf(
-				' data-background-layout-hover="%1$s"',
-				esc_attr( $background_layout_hover )
-			);
-		}
+		// Background layout data attributes.
+		$data_background_layout = et_pb_background_layout_options()->get_background_layout_attrs( $this->props );
 
 		// Module classnames
 		$this->add_classname( array(
-			"et_pb_bg_layout_{$background_layout}",
 			"et_pb_text_align_{$text_orientation}",
 		) );
 
-		if ( ! empty( $background_layout_tablet ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_tablet}_tablet" );
-		}
-
-		if ( ! empty( $background_layout_phone ) ) {
-			$this->add_classname( "et_pb_bg_layout_{$background_layout_phone}_phone" );
-		}
+		// Background layout class names.
+		$background_layout_class_names = et_pb_background_layout_options()->get_background_layout_class( $this->props );
+		$this->add_classname( $background_layout_class_names );
 
 		if ( 'off' !== $header_fullscreen ) {
 			$this->add_classname( 'et_pb_fullscreen' );
 		}
+
+		$muti_view_data_attr = $multi_view->render_attrs( array(
+			'classes' => array(
+				'et_pb_header_with_image' => array(
+					'header_image_url' => '__not_empty',
+				),
+			)
+		) );
 
 		$output = sprintf(
 			'<section%7$s class="%1$s"%9$s%10$s>
@@ -924,7 +920,7 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 			$this->module_id(),
 			$video_background,
 			et_core_esc_previously( $data_background_layout ),
-			et_core_esc_previously( $data_background_layout_hover ) // #10
+			et_core_esc_previously( $muti_view_data_attr ) // #10
 		);
 
 		return $output;
@@ -934,7 +930,7 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 	 * Filter multi view value.
 	 *
 	 * @since 3.27.1
-	 * 
+	 *
 	 * @see ET_Builder_Module_Helper_MultiViewOptions::filter_value
 	 *
 	 * @param mixed $raw_value Props raw value.
@@ -952,22 +948,25 @@ class ET_Builder_Module_Fullwidth_Header extends ET_Builder_Module {
 	 * @return mixed
 	 */
 	public function multi_view_filter_value( $raw_value, $args, $multi_view ) {
-		$name = isset( $args['name'] ) ? $args['name'] : '';
-		$mode = isset( $args['mode'] ) ? $args['mode'] : '';
+		$name    = isset( $args['name'] ) ? $args['name'] : '';
+		$mode    = isset( $args['mode'] ) ? $args['mode'] : '';
+		$context = isset( $args['context'] ) ? $args['context'] : '';
+
 		$fields_need_escape_full = array(
 			'title',
 			'subhead',
 		);
+
+		if ( $raw_value && 'content' === $context && in_array( $name, $fields_need_escape_full, true ) ) {
+			return $this->_esc_attr( $multi_view->get_name_by_mode( $name, $mode ), 'full');
+		}
+
 		$fields_need_escape_limited = array(
 			'button_one_text',
 			'button_two_text',
 		);
 
-		if ( $raw_value && in_array( $name, $fields_need_escape_full, true ) ) {
-			return $this->_esc_attr( $multi_view->get_name_by_mode( $name, $mode ), 'full');
-		}
-
-		if ( $raw_value && in_array( $name, $fields_need_escape_limited, true ) ) {
+		if ( $raw_value && 'content' === $context && in_array( $name, $fields_need_escape_limited, true ) ) {
 			return $this->_esc_attr( $multi_view->get_name_by_mode( $name, $mode ), 'limited');
 		}
 

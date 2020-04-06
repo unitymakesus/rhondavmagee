@@ -4,14 +4,12 @@
  *
  * @package     Divi
  * @sub-package Builder
- * @since       ??
+ * @since       3.29
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	die( 'Direct access forbidden.' );
 }
-
-require_once 'Overlay.php';
 
 if ( et_is_woocommerce_plugin_active() ) {
 
@@ -19,8 +17,6 @@ if ( et_is_woocommerce_plugin_active() ) {
 	 * Class ET_Builder_Module_Helper_Woocommerce_Modules
 	 *
 	 * Shared code between all Woo Modules.
-	 *
-	 * @since 3.29
 	 */
 	class ET_Builder_Module_Helper_Woocommerce_Modules {
 		/**
@@ -57,6 +53,15 @@ if ( et_is_woocommerce_plugin_active() ) {
 				return 0;
 			}
 
+			if ( 'current' === $valid_product_attr ) {
+				$current_post_id = ET_Builder_Element::get_current_post_id();
+
+				if ( et_theme_builder_is_layout_post_type( get_post_type( $current_post_id ) ) ) {
+					// We want to use the latest product when we are editing a TB layout.
+					$valid_product_attr = 'latest';
+				}
+			}
+
 			if ( ! in_array( $valid_product_attr, array(
 					'current',
 					'latest',
@@ -76,6 +81,25 @@ if ( et_is_woocommerce_plugin_active() ) {
 					$product_id = $products[0]->get_id();
 				} else {
 					return 0;
+				}
+			} else if ( is_numeric( $valid_product_attr ) && 'product' !== get_post_type( $valid_product_attr ) ) {
+				// There is a condition that $valid_product_attr value passed here is not the product ID.
+				// For example when you set product breadcrumb as Blurb Title when building layout in TB.
+				// So we get the most recent product ID in date descending order.
+				$query = new WC_Product_Query( array(
+					'limit'   => 1,
+					'orderby' => 'date',
+					'order'   => 'DESC',
+					'return'  => 'ids',
+					'status'  => array( 'publish' ),
+				) );
+
+				$products = $query->get_products();
+
+				if ( $products && ! empty( $products[0] ) ) {
+					$product_id = absint( $products[0] );
+				} else {
+					$product_id = absint( $valid_product_attr );
 				}
 			} else {
 				$product_id = absint( $valid_product_attr );
@@ -321,7 +345,8 @@ if ( et_is_woocommerce_plugin_active() ) {
 						);
 
 						if ( $account_page_url = wc_get_page_permalink( 'myaccount' ) ) {
-							$comment_form['must_log_in'] = '<p class="must-log-in">' . sprintf( esc_html__( 'You must be <a href="%s">logged in</a> to post a review.', 'et_builder' ), esc_url( $account_page_url ) ) . '</p>';
+							/* translators: %s opening and closing link tags respectively */
+							$comment_form['must_log_in'] = '<p class="must-log-in">' . sprintf( esc_html__( 'You must be %1$slogged in%2$s to post a review.', 'woocommerce' ), '<a href="' . esc_url( $account_page_url ) . '">', '</a>' ) . '</p>';
 						}
 
 						if ( get_option( 'woocommerce_enable_review_rating' ) === 'yes' ) {
@@ -498,15 +523,29 @@ if ( et_is_woocommerce_plugin_active() ) {
 		}
 
 		/**
-		 * Gets the columns default number for a given Product Id.
-		 *
-		 * @param int $post_id Product Id.
+		 * Gets the columns default.
 		 *
 		 * @return string
 		 */
-		public static function get_columns_posts_default_number_by_post_id( $post_id ) {
+		public static function get_columns_posts_default() {
+			return array(
+				'filter',
+				'et_builder_get_woo_default_columns',
+			);
+		}
+
+		/**
+		 * Gets the columns default value for the current Product.
+		 *
+		 * @return string
+		 */
+		public static function get_columns_posts_default_value() {
+			$post_id = et_core_page_resource_get_the_ID();
+			$post_id = $post_id ? $post_id : (int) et_()->array_get( $_POST, 'current_page.id' );
+
 			$page_layout = get_post_meta( $post_id, '_et_pb_page_layout', true );
-			if ( $page_layout && 'et_full_width_page' !== $page_layout ) {
+
+			if ( $page_layout && 'et_full_width_page' !== $page_layout  && ! ET_Builder_Element::is_theme_builder_layout() ) {
 				return '3'; // Set to 3 if page has sidebar.
 			}
 
@@ -734,5 +773,114 @@ if ( et_is_woocommerce_plugin_active() ) {
 				}
 			}
 		}
+
+		/**
+		 * Get the product default.
+		 *
+		 * @return array
+		 */
+		public static function get_product_default() {
+			return array(
+				'filter',
+				'et_builder_get_woo_default_product',
+			);
+		}
+
+		/**
+		 * Get the product default value for the current post type.
+		 *
+		 * @return string
+		 */
+		public static function get_product_default_value() {
+			$post_id   = et_core_page_resource_get_the_ID();
+			$post_id   = $post_id ? $post_id : (int) et_()->array_get( $_POST, 'current_page.id' );
+			$post_type = get_post_type( $post_id );
+
+			if ( 'product' === $post_type || et_theme_builder_is_layout_post_type( $post_type ) ) {
+				return 'current';
+			}
+
+			return 'latest';
+		}
+
+		/**
+		 * Converts the special chars in to their entities to be used in :before or :after
+		 * pseudo selector content.
+		 *
+		 * @param string $chars
+		 *
+		 * @since 4.0
+		 * @see   https://github.com/elegantthemes/Divi/issues/16976
+		 *
+		 * @return string
+		 */
+		public static function escape_special_chars( $chars ) {
+			switch ( trim( $chars ) ) {
+				case '&':
+					return '\0026';
+				case '>':
+				case '&#8221;>&#8221;':
+					return '\003e';
+				default:
+					return $chars;
+			}
+		}
+
+		/**
+		 * Sets the Display type to render only Products.
+		 *
+		 * @since 4.1.0
+		 *
+		 * @see     https://github.com/elegantthemes/Divi/issues/17998
+		 *
+		 * @used-by ET_Builder_Module_Woocommerce_Related_Products::render()
+		 * @used-by ET_Builder_Module_Woocommerce_Upsells::render()
+		 *
+		 * @param string $option_name
+		 * @param string $display_type
+		 *
+		 * @return string
+		 */
+		public static function set_display_type_to_render_only_products( $option_name,
+        $display_type = '' ) {
+			$existing_display_type = get_option( $option_name );
+			update_option( $option_name, $display_type );
+
+			return $existing_display_type;
+		}
+
+		/**
+		 * Resets the display type to the existing value.
+		 *
+		 * @since 4.1.0
+		 *
+		 * @see     https://github.com/elegantthemes/Divi/issues/17998
+		 *
+		 * @used-by ET_Builder_Module_Woocommerce_Related_Products::render()
+		 * @used-by ET_Builder_Module_Woocommerce_Upsells::render()
+		 *
+		 * @param $option_name
+		 * @param $display_type
+		 */
+		public static function reset_display_type( $option_name, $display_type ) {
+			update_option( $option_name, $display_type );
+		}
+
 	}
+
+	add_filter(
+		'et_builder_get_woo_default_columns',
+		array(
+			'ET_Builder_Module_Helper_Woocommerce_Modules',
+			'get_columns_posts_default_value',
+		)
+	);
+
+	add_filter(
+		'et_builder_get_woo_default_product',
+		array(
+			'ET_Builder_Module_Helper_Woocommerce_Modules',
+			'get_product_default_value',
+		)
+	);
 }

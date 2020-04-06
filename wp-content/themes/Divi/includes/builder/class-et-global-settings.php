@@ -363,6 +363,11 @@ class ET_Global_Settings {
 			'et_pb_login-background_position'                        => $background_image_defaults['position'],
 			'et_pb_login-background_repeat'                          => $background_image_defaults['repeat'],
 			'et_pb_login-background_blend'                           => $background_image_defaults['blend'],
+			// Module: Menu
+			'et_pb_menu-background_size'                             => $background_image_defaults['size'],
+			'et_pb_menu-background_position'                         => $background_image_defaults['position'],
+			'et_pb_menu-background_repeat'                           => $background_image_defaults['repeat'],
+			'et_pb_menu-background_blend'                            => $background_image_defaults['blend'],
 			// Module: Number Counter
 			'et_pb_number_counter-title_font_size'                   => '16',
 			'et_pb_number_counter-title_line_height'                 => '1em',

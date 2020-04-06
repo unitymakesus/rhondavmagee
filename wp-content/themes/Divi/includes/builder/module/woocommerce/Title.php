@@ -7,7 +7,7 @@
  *
  * @package Divi\Builder
  *
- * @since   ??
+ * @since   3.29
  */
 
 /**
@@ -31,11 +31,11 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 			),
 			'advanced' => array(
 				'toggles' => array(
-					'text'  => array(
+					'header' => array(
 						'title'    => esc_html__( 'Title Text', 'et_builder' ),
 						'priority' => 49,
 					),
-					'width' => array(
+					'width'  => array(
 						'title'    => esc_html__( 'Sizing', 'et_builder' ),
 						'priority' => 65,
 					),
@@ -54,7 +54,7 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 						'default' => 'h1',
 					),
 					'tab_slug'     => 'advanced',
-					'toggle_slug'  => 'text',
+					'toggle_slug'  => 'header',
 				),
 			),
 			'background'     => array(
@@ -79,6 +79,7 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 						'hover'            => 'tabs',
 					),
 				),
+				'toggle_slug'           => 'header',
 			),
 			'text_shadow'    => array(
 				// Don't add text-shadow fields since they already are via font-options.
@@ -90,7 +91,7 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 		$this->custom_css_fields = array(
 			'title_text' => array(
 				'label'    => esc_html__( 'Title Text', 'et_builder' ),
-				'selector' => 'h1, h2, h3, h4, h5, h6',
+				'selector' => '%%order_class%% h1, %%order_class%% h2, %%order_class%% h3, %%order_class%% h4, %%order_class%% h5, %%order_class%% h6',
 			),
 		);
 
@@ -110,7 +111,7 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 			'product'        => ET_Builder_Module_Helper_Woocommerce_Modules::get_field(
 				'product',
 				array(
-					'default'          => 'product' === $this->get_post_type() ? 'current' : 'latest',
+					'default'          => ET_Builder_Module_Helper_Woocommerce_Modules::get_product_default(),
 					'computed_affects' => array(
 						'__title',
 					),
@@ -151,6 +152,10 @@ class ET_Builder_Module_Woocommerce_Title extends ET_Builder_Module {
 	 * @return string
 	 */
 	public static function get_title( $args = array() ) {
+		if ( et_builder_tb_enabled() ) {
+			return esc_html( 'Product Name', 'et_builder' );
+		}
+
 		$defaults = array(
 			'product' => 'current',
 		);
